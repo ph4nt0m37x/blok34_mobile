@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "264183891151",
+    "project_id": "blok34-app",
+    "storage_bucket": "blok34-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:264183891151:android:84db72580019d8d743a3ba",
+        "android_client_info": {
+          "package_name": "com.example.blok34_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBVWLScz2BonD86Kp7QOLUxtNaF_4tNiOQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
