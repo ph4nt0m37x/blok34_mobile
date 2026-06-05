@@ -1,32 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:blok34_mobile/models/event.dart';
 import 'event_card.dart';
 
-import 'package:blok34_mobile/models/event.dart';
-
-class EventGrid extends StatefulWidget {
+class EventGrid extends StatelessWidget {
   final List<Event> events;
 
-  const EventGrid({super.key, required this.events});
+  const EventGrid({
+    super.key,
+    required this.events,
+  });
 
-  @override
-  State<StatefulWidget> createState() => _EventGridState();
-}
-
-class _EventGridState extends State<EventGrid> {
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 1,
-          mainAxisSpacing: 4,
-          // crossAxisSpacing: 4,
-          childAspectRatio: 2.4
-      ),
-      itemCount: widget.events.length,
-      physics: BouncingScrollPhysics(),
+    return ListView.separated(
       shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: events.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
-        return EventCard(event: widget.events[index]);
+        return EventCard(
+          event: events[index],
+        );
       },
     );
   }

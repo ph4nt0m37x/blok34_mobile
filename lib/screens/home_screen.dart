@@ -93,29 +93,82 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.deepPurple,
-      body: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            // WEATHER SECTION
-            if (isLoadingWeather)
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: CircularProgressIndicator(),
-              )
-            else if (weatherData.isNotEmpty)
-              WeatherWidget(weatherData: weatherData),
+      backgroundColor: Colors.transparent,
+      body: SafeArea(
+        child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
 
-            const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        "Share your next adventure with others in Skopje :)",
+                        style: TextStyle(
+                          fontSize: 20,
+                          color: Colors.white70,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
 
-            // EVENTS GRID
-            Expanded(
-              child: EventGrid(events: events),
-            ),
-          ],
+                    const SizedBox(width: 16),
+
+                    SizedBox(
+                      width: MediaQuery.of(context).size.width * 0.35,
+                      height: 40,
+                      child: ElevatedButton.icon(
+                        onPressed: () {},
+                        icon: const Icon(Icons.add, size: 16),
+                        label: const Text("Create New Event"),
+                      ),
+                    )
+                  ],
+                ),
+              ),
+
+
+              if (isLoadingWeather)
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                )
+              else if (weatherData.isNotEmpty)
+                WeatherWidget(weatherData: weatherData),
+
+              const SizedBox(height: 24),
+
+              const Text(
+                "Upcoming Events",
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              EventGrid(events: events),
+            ],
+          ),
         ),
       ),
+    )
+
     );
   }
 }
