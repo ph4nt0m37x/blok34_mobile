@@ -220,9 +220,9 @@ class _EventsScreenState extends State<EventsScreen> {
                   ? Center(
                 child: Column(
                   children: const [
-                    Icon(Icons.search_off, size: 64),
+                    Icon(Icons.search_off, size: 64, color: Colors.white70),
                     SizedBox(height: 12),
-                    Text("No events found"),
+                    Text("No events found", style: TextStyle(color: Colors.white70)),
                   ],
                 ),
               )

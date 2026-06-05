@@ -45,6 +45,18 @@ Future<List<Venue>> searchVenues(String query) async {
   return filtered;
 }
 
+Future<List<Venue>> getVenuesByCategory(String category) async {
+  final snap = await FirebaseFirestore.instance
+      .collection('venues')
+      .where('category', isEqualTo: category)
+      .get();
+
+  return snap.docs
+      .map((doc) => Venue.fromJson(doc.data(), doc.id))
+      .toList();
+}
+
+
 // EVENTS
 
 
