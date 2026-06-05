@@ -1,32 +1,24 @@
-// import 'package:flutter/material.dart';
-//
-// class EventsScreen extends StatelessWidget {
-//   const EventsScreen({super.key});
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Center(child: Text('Events Page'));
-//   }
-// }
-
-
 import 'package:flutter/material.dart';
 
-import 'package:blok34_mobile/services/weather_service.dart';
-import 'package:blok34_mobile/enums/event_category.dart';
-import 'package:blok34_mobile/models/event.dart';
-import 'package:blok34_mobile/models/weather_forecast.dart';
-import 'package:blok34_mobile/widgets/event_grid.dart';
-import 'package:blok34_mobile/widgets/weather_widget.dart';
+import '../enums/event_category.dart';
+import '../models/event.dart';
+import '../models/weather_forecast.dart';
+import '../services/weather_service.dart';
+import '../widgets/event_grid.dart';
+import '../widgets/weather_widget.dart';
 
-class EventsScreen extends StatefulWidget {
-  const EventsScreen({super.key});
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
 
   @override
-  State<EventsScreen> createState() => _EventsScreenState();
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _EventsScreenState extends State<EventsScreen> {
+class _HomeScreenState extends State<HomeScreen> {
+  final WeatherService _weatherService = WeatherService();
+
+  List<Weather> weatherData = [];
+  bool isLoadingWeather = true;
 
   final List<Event> events = [
     // MOCK EVENTS (UI only)
@@ -55,7 +47,7 @@ class _EventsScreenState extends State<EventsScreen> {
     Event(
       id: '3',
       title: 'Board Games Night',
-      description: 'Bring your favorite games.',
+      description: 'Bring your favorite games.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
       startDate: DateTime.now().add(const Duration(days: 3)),
       venueId: 'venue3',
       category: EventCategory.culturalEvent,
@@ -77,19 +69,46 @@ class _EventsScreenState extends State<EventsScreen> {
   @override
   void initState() {
     super.initState();
+    loadWeather();
+  }
+
+  Future<void> loadWeather() async {
+    try {
+      final data = await _weatherService.fetchDailyWeather(
+        41.9981, // skopje latitude
+        21.4254, // skopje longitude
+      );
+
+      setState(() {
+        weatherData = data;
+        isLoadingWeather = false;
+      });
+    } catch (e) {
+      setState(() {
+        isLoadingWeather = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color.fromARGB(255, 141, 79, 155),
-      // appBar: AppBar(
-      //   title: const Text('Home'),
-      // ),
+      backgroundColor: Colors.deepPurple,
       body: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
           children: [
+            // WEATHER SECTION
+            if (isLoadingWeather)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: CircularProgressIndicator(),
+              )
+            else if (weatherData.isNotEmpty)
+              WeatherWidget(weatherData: weatherData),
+
+            const SizedBox(height: 12),
+
             // EVENTS GRID
             Expanded(
               child: EventGrid(events: events),

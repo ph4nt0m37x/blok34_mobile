@@ -8,7 +8,8 @@ class Event {
   DateTime? endDate;
   String venueId;
   EventCategory category;
-  String? createdByUserId;
+  String createdByUserId;
+  String? bannerPath;
 
   Event({
     required this.id,
@@ -18,7 +19,8 @@ class Event {
     this.endDate,
     required this.venueId,
     required this.category,
-    this.createdByUserId,
+    required this.createdByUserId,
+    this.bannerPath
   });
 
   Event.fromJson(Map<String, dynamic> data, String id)
@@ -31,7 +33,8 @@ class Event {
         category = EventCategory.values.firstWhere(
               (e) => e.name == data['category'],
         ),
-        createdByUserId = data['createdByUserId'];
+        createdByUserId = data['createdByUserId'],
+        bannerPath = data['bannerPath'];
 
   Map<String, dynamic> toJson() {
     return {
@@ -42,6 +45,7 @@ class Event {
       'venueId': venueId,
       'category': category.name,
       'createdByUserId': createdByUserId,
+      'bannerPath' : bannerPath
     };
   }
 }

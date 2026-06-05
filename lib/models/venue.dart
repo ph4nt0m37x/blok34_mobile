@@ -10,7 +10,7 @@ class Venue {
   String? bannerPath;
   String phone;
   bool isPublic;
-  String? venueManagerId;
+  String venueManagerId;
 
   Venue({
     required this.id,
@@ -21,7 +21,7 @@ class Venue {
     this.bannerPath,
     required this.phone,
     this.isPublic = true,
-    this.venueManagerId,
+    required this.venueManagerId,
   });
 
   Venue.fromJson(Map<String, dynamic> data, String id)
