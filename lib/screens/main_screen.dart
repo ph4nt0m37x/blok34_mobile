@@ -1,4 +1,3 @@
-// main_screen.dart
 import 'package:flutter/material.dart';
 import 'package:blok34_mobile/screens/home_screen.dart';
 import 'package:blok34_mobile/screens/events/event_list_screen.dart';

@@ -71,6 +71,18 @@ class EventService {
         .toList();
   }
 
+  Future<List<Event>> getEventsByVenueId(String venueId) async {
+    final snap = await FirebaseFirestore.instance
+        .collection('events')
+        .where('venueId', isEqualTo: venueId)
+        .orderBy('startDate', descending: true)
+        .get();
+
+    return snap.docs
+        .map((doc) => Event.fromJson(doc.data(), doc.id))
+        .toList();
+  }
+
 
 
 }

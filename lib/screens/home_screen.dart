@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../enums/event_category.dart';
 import '../models/event.dart';
 import '../models/weather_forecast.dart';
+import '../providers/weather_provider.dart';
 import '../services/weather_service.dart';
 import '../widgets/event_grid.dart';
 import '../widgets/weather_widget.dart';
@@ -15,7 +17,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final WeatherService _weatherService = WeatherService();
+  // final WeatherService _weatherService = WeatherService();
 
   List<Weather> weatherData = [];
   bool isLoadingWeather = true;
@@ -69,18 +71,23 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    loadWeather();
-  }
 
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<WeatherProvider>()
+          .loadWeather( 41.99611, 21.43167);
+    });
+  }
   Future<void> loadWeather() async {
     try {
-      final data = await _weatherService.fetchDailyWeather(
-        41.9981, // skopje latitude
-        21.4254, // skopje longitude
+      final provider = context.read<WeatherProvider>();
+
+      await provider.loadWeather(
+        41.99611,
+        21.43167,
       );
 
       setState(() {
-        weatherData = data;
+        weatherData = provider.forecast;
         isLoadingWeather = false;
       });
     } catch (e) {
@@ -92,6 +99,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final weatherProvider = context.watch<WeatherProvider>();
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
@@ -139,15 +148,12 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
 
 
-              if (isLoadingWeather)
-                const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Center(
-                    child: CircularProgressIndicator(),
-                  ),
-                )
-              else if (weatherData.isNotEmpty)
-                WeatherWidget(weatherData: weatherData),
+              if (weatherProvider.isLoading)
+                const CircularProgressIndicator()
+              else if (weatherProvider.forecast.isNotEmpty)
+                WeatherWidget(
+                  weatherData: weatherProvider.forecast,
+                ),
 
               const SizedBox(height: 24),
 

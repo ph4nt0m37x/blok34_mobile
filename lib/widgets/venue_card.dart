@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:blok34_mobile/models/venue.dart';
 
+import '../screens/venues/venue_details_screen.dart';
 import '../utils/text_formatter.dart';
 
 class VenueCard extends StatelessWidget {
@@ -14,7 +15,7 @@ class VenueCard extends StatelessWidget {
 
     return GestureDetector(
       onTap: () {
-        // Navigator.push(context, MaterialPageRoute(builder: (context) => VenueDetails(venue: venue)));
+        Navigator.push(context, MaterialPageRoute(builder: (context) => VenueDetails(venue: venue, upcomingEvents: []), ));
       },
       child: Container(
         decoration: BoxDecoration(

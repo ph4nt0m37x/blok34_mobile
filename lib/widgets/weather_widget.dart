@@ -27,7 +27,7 @@ class _WeatherWidgetState extends State<WeatherWidget> {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+        side: BorderSide(color: Colors.lightBlueAccent.withValues(alpha: 0.3)),
       ),
       color: Colors.white.withValues(alpha: 0.07),
       child: ClipRRect(
@@ -35,7 +35,7 @@ class _WeatherWidgetState extends State<WeatherWidget> {
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+            border: Border.all(color: Colors.lightBlueAccent.withValues(alpha: 0.3)),
           ),
           child: Padding(
             padding: EdgeInsets.all(16),
@@ -129,7 +129,7 @@ class _WeatherWidgetState extends State<WeatherWidget> {
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        border: Border.all(color: Colors.lightBlueAccent.withValues(alpha: 0.1)),
       ),
       child: Row(
         children: [
@@ -190,8 +190,8 @@ class _WeatherWidgetState extends State<WeatherWidget> {
           shrinkWrap: true,
           physics: NeverScrollableScrollPhysics(),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            childAspectRatio: 1.2,
+            crossAxisCount: 4,
+            childAspectRatio: 0.8,
             crossAxisSpacing: 8,
             mainAxisSpacing: 8,
           ),
@@ -213,7 +213,7 @@ class _WeatherWidgetState extends State<WeatherWidget> {
             }
 
             return Container(
-              padding: EdgeInsets.all(12),
+              padding: EdgeInsets.all(8 ),
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(12),
