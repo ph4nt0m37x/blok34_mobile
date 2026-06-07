@@ -1,5 +1,7 @@
-import '../models/event.dart';
+import 'package:blok34_mobile/models/event.dart';
+import 'package:blok34_mobile/models/event_attendance.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:blok34_mobile/enums/attendance_status.dart';
 
 class EventService {
 
@@ -82,6 +84,117 @@ class EventService {
         .map((doc) => Event.fromJson(doc.data(), doc.id))
         .toList();
   }
+
+  // ATTENDANCE
+
+  Future<List<EventAttendance>> getAttendingUsers(
+      String eventId,
+      ) async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('event_attendance')
+        .where('eventId', isEqualTo: eventId)
+        .where(
+      'status',
+      isEqualTo: AttendanceStatus.attending.name,
+    )
+        .get();
+
+    return snapshot.docs
+        .map(
+          (doc) => EventAttendance.fromJson(
+        doc.data(),
+        doc.id,
+      ),
+    )
+        .toList();
+  }
+
+  Future<List<EventAttendance>> getInterestedUsers(
+      String eventId,
+      ) async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('event_attendance')
+        .where('eventId', isEqualTo: eventId)
+        .where(
+      'status',
+      isEqualTo: AttendanceStatus.interested.name,
+    )
+        .get();
+
+    return snapshot.docs
+        .map(
+          (doc) => EventAttendance.fromJson(
+        doc.data(),
+        doc.id,
+      ),
+    )
+        .toList();
+  }
+
+  Future<EventAttendance?> getUserAttendance(
+      String eventId,
+      String userId,
+      ) async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('event_attendance')
+        .where('eventId', isEqualTo: eventId)
+        .where('userId', isEqualTo: userId)
+        .limit(1)
+        .get();
+
+    if (snapshot.docs.isEmpty) {
+      return null;
+    }
+
+    return EventAttendance.fromJson(
+      snapshot.docs.first.data(),
+      snapshot.docs.first.id,
+    );
+  }
+
+  Future<void> setAttendance(
+      String eventId,
+      String userId,
+      AttendanceStatus status,
+      ) async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('event_attendance')
+        .where('eventId', isEqualTo: eventId)
+        .where('userId', isEqualTo: userId)
+        .limit(1)
+        .get();
+
+    if (snapshot.docs.isEmpty) {
+      await FirebaseFirestore.instance
+          .collection('event_attendance')
+          .add({
+        'eventId': eventId,
+        'userId': userId,
+        'status': status.name,
+      });
+    } else {
+      await snapshot.docs.first.reference.update({
+        'status': status.name,
+      });
+    }
+  }
+
+  Future<void> removeAttendance(
+      String eventId,
+      String userId,
+      ) async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('event_attendance')
+        .where('eventId', isEqualTo: eventId)
+        .where('userId', isEqualTo: userId)
+        .limit(1)
+        .get();
+
+    if (snapshot.docs.isNotEmpty) {
+      await snapshot.docs.first.reference.delete();
+    }
+  }
+
 
 
 

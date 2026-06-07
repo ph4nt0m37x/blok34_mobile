@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:blok34_mobile/models/event.dart';
+import 'package:blok34_mobile/models/venue.dart';
+import 'package:blok34_mobile/screens/events/event_details_screen.dart';
+import 'package:blok34_mobile/utils/text_formatter.dart';
+import 'package:blok34_mobile/utils/date_formatter.dart';
 
-import '../utils/date_formatter.dart';
-import '../utils/text_formatter.dart';
+import '../enums/venue_category.dart';
+import '../services/venue_service.dart';
 
 class EventCard extends StatelessWidget {
   final Event event;
@@ -12,10 +16,27 @@ class EventCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Color text = Colors.white;
+    // final VenueService _venueService = VenueService();
+    // Venue venue = _venueService.getVenueById(event.venueId);
+
+    final List<Venue> venues = [
+    // MOCK VENUES (UI only)
+    Venue(
+      id: '1',
+      name: 'The Jazz Club',
+      category: VenueCategory.bar,
+      description: 'Live jazz music every night. Great cocktails and atmosphere.',
+      address: '123 Main St, Downtown',
+      phone: '+1234567890',
+      isPublic: true,
+      venueManagerId: 'user1',
+      bannerPath: null,
+    ),
+    ];
 
     return GestureDetector(
       onTap: () {
-        // Navigator.of(context).push(MaterialPageRoute(builder: (BuildContext context) => EventDetails(category: event.id,)));
+        Navigator.of(context).push(MaterialPageRoute(builder: (BuildContext context) => EventDetails(event: event, venue:  venues.first, currentAppUserId: '',)));
       },
       child: Card(
         shape: RoundedRectangleBorder(

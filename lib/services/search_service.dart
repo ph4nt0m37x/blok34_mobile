@@ -4,6 +4,8 @@ import '../models/event.dart';
 import '../models/venue.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+class SearchService {
+
 // VENUES
 
 Future<List<Venue>> searchVenues(String query) async {
@@ -152,4 +154,5 @@ Future<SearchResult> search(String query) async {
     events: events,
     venues: venues,
   );
+}
 }

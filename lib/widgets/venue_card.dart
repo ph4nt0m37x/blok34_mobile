@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:blok34_mobile/models/venue.dart';
 
+import '../enums/event_category.dart';
+import '../models/event.dart';
 import '../screens/venues/venue_details_screen.dart';
 import '../utils/text_formatter.dart';
 
@@ -13,9 +15,53 @@ class VenueCard extends StatelessWidget {
   Widget build(BuildContext context) {
     Color text = Colors.white;
 
+    final List<Event> events = [
+      // MOCK EVENTS (UI only)
+      Event(
+        id: '1',
+        title: 'Flutter Meetup',
+        description: 'Meet local Flutter developers.',
+        startDate: DateTime.now().add(const Duration(days: 1)),
+        venueId: 'venue1',
+        category: EventCategory.meetup,
+        createdByUserId: 'user1',
+        bannerPath: null,
+      ),
+      Event(
+        id: '2',
+        title: 'Rock Concert',
+        description: 'Live music all night.',
+        startDate: DateTime.now().add(const Duration(days: 2)),
+        venueId: 'venue2',
+        category: EventCategory.liveMusic,
+        createdByUserId: 'user2',
+        bannerPath: null,
+      ),
+      Event(
+        id: '3',
+        title: 'Board Games Night',
+        description: 'Bring your favorite games.',
+        startDate: DateTime.now().add(const Duration(days: 3)),
+        venueId: 'venue3',
+        category: EventCategory.culturalEvent,
+        createdByUserId: 'user3',
+        bannerPath: null,
+      ),
+      Event(
+        id: '4',
+        title: 'Startup Networking',
+        description: 'Meet founders and investors.',
+        startDate: DateTime.now().add(const Duration(days: 5)),
+        venueId: 'venue4',
+        category: EventCategory.beerTasting,
+        createdByUserId: 'user4',
+        bannerPath: null,
+      ),
+    ];
+
     return GestureDetector(
       onTap: () {
-        Navigator.push(context, MaterialPageRoute(builder: (context) => VenueDetails(venue: venue, upcomingEvents: []), ));
+        Navigator.push(context, MaterialPageRoute(builder: (context) => VenueDetails(venue: venue, upcomingEvents: events), ));
       },
       child: Container(
         decoration: BoxDecoration(
@@ -48,11 +94,11 @@ class VenueCard extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: venue.isPublic
-                          ? Colors.green.withValues(alpha: 0.2)
-                          : Colors.orange.withValues(alpha: 0.2),
+                          ? Colors.lightBlueAccent.withValues(alpha: 0.3)
+                          : Colors.purpleAccent.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: venue.isPublic ? Colors.green.shade300 : Colors.orange.shade300,
+                        color: venue.isPublic ? Colors.lightBlueAccent : Colors.purpleAccent,
                         width: 0.5,
                       ),
                     ),

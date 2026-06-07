@@ -40,6 +40,13 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
 
+      /*
+      final user = FirebaseAuth.instance.currentUser;
+
+        home: user == null
+        ? LoginScreen()
+        : MainScreen(),
+      */
       // start here
       //  home: LoginScreen(authService: authService),
           home: MainScreen(),
