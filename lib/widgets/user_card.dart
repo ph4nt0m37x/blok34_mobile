@@ -1,4 +1,3 @@
-// widgets/user_card.dart - Update the card
 import 'package:flutter/material.dart';
 import 'package:blok34_mobile/models/app_user.dart';
 
@@ -42,14 +41,14 @@ class UserCard extends StatelessWidget {
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(16), // Reduced from 20
+          padding: const EdgeInsets.all(16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               // Circular Avatar
               Container(
-                width: 70, // Reduced from 80
-                height: 70, // Reduced from 80
+                width: 70,
+                height: 70,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: LinearGradient(
@@ -85,12 +84,12 @@ class UserCard extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 12), // Reduced from 16
+              const SizedBox(height: 12),
               // User Name
               Text(
                 user.name,
                 style: const TextStyle(
-                  fontSize: 16, // Reduced from 18
+                  fontSize: 16,
                   fontWeight: FontWeight.w600,
                   color: Colors.white,
                 ),
@@ -99,17 +98,17 @@ class UserCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 4),
-                Text(
-                  user.username,
-                  style: TextStyle(
-                    fontSize: 11, // Reduced from 12
-                    color: Colors.white.withValues(alpha: 0.5),
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+              Text(
+                user.username,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.white.withValues(alpha: 0.5),
                 ),
-              const SizedBox(height: 12), // Reduced from 16
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 12),
               // Action Button
               if (showActionButton)
                 GestureDetector(
@@ -137,14 +136,14 @@ class UserCard extends StatelessWidget {
                       children: [
                         Icon(
                           actionButtonIcon,
-                          size: 14, // Reduced from 16
+                          size: 14,
                           color: Colors.white.withValues(alpha: 0.8),
                         ),
                         const SizedBox(width: 6),
                         Text(
                           actionButtonText,
                           style: TextStyle(
-                            fontSize: 11, // Reduced from 13
+                            fontSize: 11,
                             fontWeight: FontWeight.w500,
                             color: Colors.white.withValues(alpha: 0.9),
                           ),

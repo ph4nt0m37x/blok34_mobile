@@ -2,9 +2,11 @@
 import 'package:blok34_mobile/screens/profile/settings_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:blok34_mobile/services/auth_service.dart';
+import 'package:blok34_mobile/services/user_service.dart';
+import 'package:blok34_mobile/services/event_service.dart';
 import 'package:blok34_mobile/models/app_user.dart';
 import 'package:blok34_mobile/models/event.dart';
-import 'package:blok34_mobile/enums/event_category.dart';
+import 'package:blok34_mobile/models/event_attendance.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String userId;
@@ -21,6 +23,8 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final AuthService _authService = AuthService();
+  final UserService _userService = UserService();
+  final EventService _eventService = EventService();
 
   AppUser? _user;
   List<Event> _createdEvents = [];
@@ -56,90 +60,71 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     });
 
     try {
-      // Load user data
-      _user = await _authService.loadUserData();
+      // Load user data using UserService
+      _user = await _userService.getUserById(widget.userId);
 
-      // In a real app, you would fetch these from your API/Service
-      // For now, using mock data
-      await Future.delayed(const Duration(milliseconds: 500));
+      if (_user == null) {
+        throw Exception('User not found');
+      }
 
-      _createdEvents = _getMockCreatedEvents();
-      _attendingEvents = _getMockAttendingEvents();
-      _interestedEvents = _getMockInterestedEvents();
+      // Load user's events
+      await _loadUserEvents();
 
     } catch (e) {
-      _showSnackBar('Error loading profile: $e', isError: true);
+      print('Error loading profile: $e');
+      if (mounted) {
+        _showSnackBar('Error loading profile: $e', isError: true);
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
-  // Mock data methods - Replace with actual API calls
-  List<Event> _getMockCreatedEvents() {
-    return [
-      Event(
-        id: '1',
-        title: 'Flutter Meetup',
-        description: 'Meet local Flutter developers and share knowledge.',
-        startDate: DateTime.now().add(const Duration(days: 5)),
-        venueId: 'venue1',
-        category: EventCategory.meetup,
-        createdByUserId: widget.userId,
-        bannerPath: null,
-      ),
-      Event(
-        id: '2',
-        title: 'Tech Conference 2024',
-        description: 'Annual tech conference with amazing speakers.',
-        startDate: DateTime.now().add(const Duration(days: 12)),
-        venueId: 'venue2',
-        category: EventCategory.conference,
-        createdByUserId: widget.userId,
-        bannerPath: null,
-      ),
-    ];
-  }
+  Future<void> _loadUserEvents() async {
+    try {
+      // Load events created by the user
+      _createdEvents = await _eventService.getEventsByCreator(widget.userId);
 
-  List<Event> _getMockAttendingEvents() {
-    return [
-      Event(
-        id: '3',
-        title: 'Rock Concert',
-        description: 'Live rock music all night long.',
-        startDate: DateTime.now().add(const Duration(days: 2)),
-        venueId: 'venue3',
-        category: EventCategory.liveMusic,
-        createdByUserId: 'user2',
-        bannerPath: null,
-      ),
-      Event(
-        id: '4',
-        title: 'Board Games Night',
-        description: 'Bring your favorite board games.',
-        startDate: DateTime.now().add(const Duration(days: 7)),
-        venueId: 'venue4',
-        category: EventCategory.culturalEvent,
-        createdByUserId: 'user3',
-        bannerPath: null,
-      ),
-    ];
-  }
+      // Load events the user is attending
+      final attendingRecords = await _eventService.getEventsUserIsAttending(widget.userId);
+      final attendingEvents = <Event>[];
+      for (final record in attendingRecords) {
+        final event = await _eventService.getEventById(record.eventId);
+        if (event != null) {
+          attendingEvents.add(event);
+        }
+      }
+      _attendingEvents = attendingEvents;
 
-  List<Event> _getMockInterestedEvents() {
-    return [
-      Event(
-        id: '5',
-        title: 'Startup Networking',
-        description: 'Meet founders and investors in the area.',
-        startDate: DateTime.now().add(const Duration(days: 9)),
-        venueId: 'venue5',
-        category: EventCategory.beerTasting,
-        createdByUserId: 'user4',
-        bannerPath: null,
-      ),
-    ];
+      // Load events the user is interested in
+      final interestedRecords = await _eventService.getEventsUserIsInterestedIn(widget.userId);
+      final interestedEvents = <Event>[];
+      for (final record in interestedRecords) {
+        final event = await _eventService.getEventById(record.eventId);
+        if (event != null) {
+          interestedEvents.add(event);
+        }
+      }
+      _interestedEvents = interestedEvents;
+
+      // Sort events by date
+      _createdEvents.sort((a, b) => a.startDate.compareTo(b.startDate));
+      _attendingEvents.sort((a, b) => a.startDate.compareTo(b.startDate));
+      _interestedEvents.sort((a, b) => a.startDate.compareTo(b.startDate));
+
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      print('Error loading user events: $e');
+      if (mounted) {
+        _showSnackBar('Error loading events: $e', isError: true);
+      }
+    }
   }
 
   void _showSnackBar(String message, {bool isError = false}) {
@@ -149,14 +134,18 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
         backgroundColor: isError ? Colors.red.shade900 : Colors.green.shade900,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
 
   void _navigateToEventDetails(Event event) {
-    // Navigate to event details screen
+    // TODO: Navigate to event details screen when implemented
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Viewing ${event.title} - Coming Soon')),
+      SnackBar(
+        content: Text('Viewing ${event.title} - Coming Soon'),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 
@@ -315,13 +304,17 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             // Edit Button for current user
             if (_isCurrentUser)
               GestureDetector(
-                onTap: () {
-                  Navigator.push(
+                onTap: () async {
+                  final result = await Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (context) => const SettingsScreen(),
                     ),
                   );
+                  // Refresh user data if returning from settings
+                  if (result == true) {
+                    _loadUserData();
+                  }
                 },
                 child: Container(
                   padding: const EdgeInsets.all(10),
@@ -441,7 +434,6 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             Colors.white.withValues(alpha: 0.07),
             Colors.white.withValues(alpha: 0.03),
           ],
-          //borderRadius: BorderRadius.circular(20),
         ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
@@ -596,7 +588,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              // Event Image Placeholder
+              // Event Image
               Container(
                 width: 60,
                 height: 60,
@@ -612,7 +604,22 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                     width: 1,
                   ),
                 ),
-                child: const Icon(
+                child: event.bannerPath != null
+                    ? ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.network(
+                    event.bannerPath!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(
+                        Icons.event,
+                        color: Colors.white,
+                        size: 30,
+                      );
+                    },
+                  ),
+                )
+                    : const Icon(
                   Icons.event,
                   color: Colors.white,
                   size: 30,
@@ -684,5 +691,3 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     return '$hour:$minute $ampm';
   }
 }
-
-// Import this at the top if not already imported

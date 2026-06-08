@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'venue_card.dart';
-
-import '../models/venue.dart';
+import 'package:blok34_mobile/models/venue.dart';
+import 'package:blok34_mobile/widgets/venue_card.dart';
 
 class VenueGrid extends StatefulWidget {
   final List<Venue> venues;

@@ -122,7 +122,7 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Color(0xFF2D1B69),
-      appBar: CustomAppBar(
+      appBar: TopNavBar(
         userPhotoUrl: null, // Pass actual user photo URL when available userPhotoUrl: currentUser?.photoUrl,
         onMyEventsTap: _onMyEventsTap,
         onMyVenuesTap: _onMyVenuesTap,

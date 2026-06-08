@@ -1,12 +1,12 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:blok34_mobile/enums/venue_category.dart';
 import 'package:blok34_mobile/models/venue.dart';
 import 'package:blok34_mobile/widgets/venue_grid.dart';
 import 'package:blok34_mobile/screens/venues/venue_form_screen.dart';
-
-import '../../utils/text_formatter.dart';
+import 'package:blok34_mobile/services/venue_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:blok34_mobile/utils/text_formatter.dart';
 
 class VenuesScreen extends StatefulWidget {
   const VenuesScreen({super.key});
@@ -17,75 +17,20 @@ class VenuesScreen extends StatefulWidget {
 
 class _VenuesScreenState extends State<VenuesScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final VenueService _venueService = VenueService();
+
   VenueCategory? _selectedCategory;
+  List<Venue> _allVenues = [];
   List<Venue> _filteredVenues = [];
   bool _isSearching = false;
+  bool _isLoading = true;
   Timer? _debounce;
   bool _showCategoryFilter = false;
-
-  final List<Venue> venues = [
-    // MOCK VENUES (UI only)
-    Venue(
-      id: '1',
-      name: 'The Jazz Club',
-      category: VenueCategory.bar,
-      description: 'Live jazz music every night. Great cocktails and atmosphere.',
-      address: '123 Main St, Downtown',
-      phone: '+1234567890',
-      isPublic: true,
-      venueManagerId: 'user1',
-      bannerPath: null,
-    ),
-    Venue(
-      id: '2',
-      name: 'Coffee & Code',
-      category: VenueCategory.cafe,
-      description: 'Cozy coffee shop perfect for working and meetings.',
-      address: '456 Oak Ave, Arts District',
-      phone: '+1234567891',
-      isPublic: true,
-      venueManagerId: 'user2',
-      bannerPath: null,
-    ),
-    Venue(
-      id: '3',
-      name: 'Grand Stadium',
-      category: VenueCategory.stadium,
-      description: 'Large venue for sports and concerts.',
-      address: '789 Sports Blvd',
-      phone: '+1234567892',
-      isPublic: true,
-      venueManagerId: 'user3',
-      bannerPath: null,
-    ),
-    Venue(
-      id: '4',
-      name: 'Art Gallery Downtown',
-      category: VenueCategory.gallery,
-      description: 'Contemporary art exhibitions and events.',
-      address: '321 Gallery Row',
-      phone: '+1234567893',
-      isPublic: true,
-      venueManagerId: 'user4',
-      bannerPath: null,
-    ),
-    Venue(
-      id: '5',
-      name: 'The Secret Spot',
-      category: VenueCategory.bar,
-      description: 'Hidden gem with craft beers.',
-      address: '555 Hidden Lane',
-      phone: '+1234567894',
-      isPublic: false,
-      venueManagerId: 'user5',
-      bannerPath: null,
-    ),
-  ];
 
   @override
   void initState() {
     super.initState();
-    _filteredVenues = venues;
+    _loadVenues();
   }
 
   @override
@@ -95,23 +40,49 @@ class _VenuesScreenState extends State<VenuesScreen> {
     super.dispose();
   }
 
+  Future<void> _loadVenues() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      List<Venue> venues;
+        venues = await _venueService.getAllVenues();
+
+      setState(() {
+        _allVenues = venues;
+        _filteredVenues = venues;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading venues: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load venues: ${e.toString()}'),
+            backgroundColor: Colors.red.shade400,
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    }
+  }
+
   void _searchVenues(String query) {
-
-    //  final results = await searchVenues(query);
-    // setState(() {
-    //   _filteredVenues = results;
-    // });
-
-
     setState(() {
       _isSearching = query.isNotEmpty;
     });
 
     setState(() {
       if (query.isEmpty && _selectedCategory == null) {
-        _filteredVenues = venues;
+        _filteredVenues = _allVenues;
       } else {
-        _filteredVenues = venues.where((venue) {
+        _filteredVenues = _allVenues.where((venue) {
           final matchesQuery = query.isEmpty ||
               venue.name.toLowerCase().contains(query.toLowerCase()) ||
               venue.description.toLowerCase().contains(query.toLowerCase()) ||
@@ -133,14 +104,6 @@ class _VenuesScreenState extends State<VenuesScreen> {
       _showCategoryFilter = false;
     });
 
-    if (category != null) {
-      // final results = await getVenuesByCategory(category); // Your function
-      // setState(() {
-      //   _filteredVenues = results;
-      // });
-    }
-
-    //local filtering
     _searchVenues(_searchController.text);
   }
 
@@ -153,15 +116,18 @@ class _VenuesScreenState extends State<VenuesScreen> {
     _searchVenues('');
   }
 
-  void _navigateToRegisterVenue() {
-    Navigator.push(
+  Future<void> _navigateToRegisterVenue() async {
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => VenueFormScreen(
-          // currentUserId: '', // Replace with actual user ID
-        ),
+        builder: (context) => const VenueFormScreen(),
       ),
     );
+
+    // Refresh the venues list if a new venue was created
+    if (result != null) {
+      _loadVenues();
+    }
   }
 
   @override
@@ -396,66 +362,118 @@ class _VenuesScreenState extends State<VenuesScreen> {
               ),
             ),
 
-            // Venues Grid
-            SliverPadding(
-              padding: const EdgeInsets.all(12),
-              sliver: _filteredVenues.isEmpty
-                  ? SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 400,
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                Colors.white.withValues(alpha: 0.08),
-                                Colors.white.withValues(alpha: 0.03),
-                              ],
-                            ),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.1),
-                              width: 0.5,
-                            ),
-                          ),
-                          child: Icon(
-                            Icons.search_off,
-                            size: 64,
-                            color: Colors.white.withValues(alpha: 0.3),
-                          ),
+            // Loading State
+            if (_isLoading)
+              const SliverFillRemaining(
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.cyan),
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        "Loading venues...",
+                        style: TextStyle(
+                          color: Colors.white70,
                         ),
-                        const SizedBox(height: 24),
-                        const Text(
-                          "No venues found",
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white70,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          "Try different keywords",
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.white54,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               )
-                  : SliverToBoxAdapter(
-                child: VenueGrid(venues: _filteredVenues),
+            else
+            // Venues Grid
+              SliverPadding(
+                padding: const EdgeInsets.all(12),
+                sliver: _filteredVenues.isEmpty
+                    ? SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 400,
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Colors.white.withValues(alpha: 0.08),
+                                  Colors.white.withValues(alpha: 0.03),
+                                ],
+                              ),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.1),
+                                width: 0.5,
+                              ),
+                            ),
+                            child: Icon(
+                              Icons.search_off,
+                              size: 64,
+                              color: Colors.white.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          const Text(
+                            "No venues found",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white70,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _selectedCategory != null || _searchController.text.isNotEmpty
+                                ? "Try different keywords or filters"
+                                : "No venues available yet",
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Colors.white54,
+                            ),
+                          ),
+                          if (_selectedCategory != null || _searchController.text.isNotEmpty)
+                            const SizedBox(height: 16),
+                          if (_selectedCategory != null || _searchController.text.isNotEmpty)
+                            GestureDetector(
+                              onTap: _clearFilters,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      Colors.cyan.shade400.withValues(alpha: 0.15),
+                                      Colors.purple.shade400.withValues(alpha: 0.1),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: Colors.cyan.shade400.withValues(alpha: 0.3),
+                                  ),
+                                ),
+                                child: const Text(
+                                  "Clear Filters",
+                                  style: TextStyle(
+                                    color: Colors.cyan,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+                    : SliverToBoxAdapter(
+                  child: VenueGrid(venues: _filteredVenues),
+                ),
               ),
-            ),
 
             const SliverToBoxAdapter(
               child: SizedBox(height: 32),

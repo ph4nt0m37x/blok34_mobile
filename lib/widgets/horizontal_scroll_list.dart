@@ -11,7 +11,6 @@ class HorizontalScrollList<T> extends StatelessWidget {
   final String? title;
   final IconData? titleIcon;
   final Widget? emptyStateWidget;
-  final VoidCallback? onSeeAllTap;
 
   const HorizontalScrollList({
     super.key,
@@ -24,7 +23,6 @@ class HorizontalScrollList<T> extends StatelessWidget {
     this.title,
     this.titleIcon,
     this.emptyStateWidget,
-    this.onSeeAllTap,
   });
 
   @override
@@ -66,20 +64,6 @@ class HorizontalScrollList<T> extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (onSeeAllTap != null)
-                  TextButton(
-                    onPressed: onSeeAllTap,
-                    style: TextButton.styleFrom(
-                      padding: EdgeInsets.symmetric(),
-                    ),
-                    child: Text(
-                      "See All →",
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.cyan.shade300,
-                      ),
-                    ),
-                  ),
               ],
             ),
           ),

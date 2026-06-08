@@ -25,7 +25,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _upcomingEventsFuture = _eventService.getUpcomingEvents();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<WeatherProvider>().loadWeather(41.99611, 21.43167);
+      context.read<WeatherProvider>().loadWeather();
     });
   }
 

@@ -4,14 +4,13 @@ import 'package:blok34_mobile/models/venue.dart';
 import 'package:blok34_mobile/enums/event_category.dart';
 import 'package:blok34_mobile/widgets/glass_text_field.dart';
 import 'package:blok34_mobile/widgets/glass_dropdown.dart';
-import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:blok34_mobile/services/venue_service.dart';
+import 'package:blok34_mobile/services/event_service.dart';
 
-import '../../providers/auth_state_provider.dart';
-import '../../services/venue_service.dart';
-import '../../services/event_service.dart';
+import '../../utils/text_formatter.dart';
 
 class EventFormScreen extends StatefulWidget {
   final Event? event;
@@ -95,18 +94,6 @@ class _EventFormScreenState extends State<EventFormScreen> {
         _endTime = widget.event!.endDate;
       }
       _bannerUrl = widget.event!.bannerPath;
-    }
-  }
-
-  String _formatCategoryName(String category) {
-    switch (category) {
-      case 'meetup': return 'Meetup';
-      case 'liveMusic': return 'Live Music';
-      case 'culturalEvent': return 'Cultural Event';
-      case 'beerTasting': return 'Beer Tasting';
-      case 'workshop': return 'Workshop';
-      case 'conference': return 'Conference';
-      default: return category;
     }
   }
 
@@ -217,8 +204,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
               onPrimary: Colors.white,
               surface: Color(0xFF1A1A3E),
               onSurface: Colors.white,
-            ),
-            dialogBackgroundColor: const Color(0xFF1A1A3E),
+            ), dialogTheme: DialogThemeData(backgroundColor: const Color(0xFF1A1A3E)),
           ),
           child: child!,
         );
@@ -278,7 +264,6 @@ class _EventFormScreenState extends State<EventFormScreen> {
               surface: Color(0xFF1A1A3E),
               onSurface: Colors.white,
             ),
-            dialogBackgroundColor: const Color(0xFF1A1A3E),
             timePickerTheme: const TimePickerThemeData(
               backgroundColor: Color(0xFF1A1A3E),
               hourMinuteTextColor: Colors.white,
@@ -286,7 +271,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
               dialBackgroundColor: Color(0xFF2D1B69),
               hourMinuteColor: Color(0xFF2D1B69),
               entryModeIconColor: Color(0xFF00BCD4),
-            ),
+            ), dialogTheme: DialogThemeData(backgroundColor: const Color(0xFF1A1A3E)),
           ),
           child: child!,
         );
@@ -791,7 +776,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
                           return null;
                         },
                         itemLabelBuilder: (category) {
-                          return _formatCategoryName(category.toString().split('.').last);
+                          return TextFormatter.formatCategoryName(category.toString().split('.').last);
                         },
                       ),
                       const SizedBox(height: 20),
@@ -990,7 +975,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
                                   }
                                 });
                               },
-                              activeColor: Colors.purple.shade300,
+                              activeThumbColor: Colors.purple.shade300,
                               activeTrackColor: Colors.purple.shade400.withValues(alpha: 0.3),
                             ),
                           ],

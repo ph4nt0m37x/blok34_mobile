@@ -12,7 +12,17 @@ class AuthStateProvider extends ChangeNotifier {
   AppUser? get currentUser => _currentUser;
   bool get isLoggedIn => _currentUser != null;
 
-  // Load user from Firestore after login / app start
+  AuthStateProvider() {
+    FirebaseAuth.instance.authStateChanges().listen((user) {
+      if (user == null) {
+        _currentUser = null;
+      } else {
+        loadCurrentUser();
+      }
+      notifyListeners();
+    });
+  }
+
   Future<void> loadCurrentUser() async {
     final firebaseUser = FirebaseAuth.instance.currentUser;
 

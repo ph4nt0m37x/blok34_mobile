@@ -154,7 +154,6 @@ class _CreatedEventsScreenState extends State<CreatedEventsScreen> {
         ),
       ),
     ).then((_) {
-      // Refresh events when returning from create
       _loadMyEvents();
       _searchEvents(_searchController.text);
     });
@@ -166,11 +165,11 @@ class _CreatedEventsScreenState extends State<CreatedEventsScreen> {
       MaterialPageRoute(
         builder: (context) => EventFormScreen(
           currentUserId: widget.currentUserId,
-          event: event, // Pass existing event for editing
+          event: event,
         ),
       ),
     ).then((_) {
-      // Refresh events when returning from edit
+
       _loadMyEvents();
       _searchEvents(_searchController.text);
     });

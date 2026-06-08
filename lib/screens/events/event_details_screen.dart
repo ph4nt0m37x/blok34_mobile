@@ -4,23 +4,23 @@ import 'package:blok34_mobile/models/venue.dart';
 import 'package:blok34_mobile/models/app_user.dart';
 import 'package:blok34_mobile/models/event_attendance.dart';
 import 'package:blok34_mobile/services/event_service.dart';
+import 'package:blok34_mobile/services/user_service.dart';
 import 'package:blok34_mobile/utils/text_formatter.dart';
 import 'package:blok34_mobile/utils/date_formatter.dart';
 
 import '../../enums/attendance_status.dart';
 import '../../widgets/glass_info_card.dart';
+import '../profile/profile_screen.dart';
 
 class EventDetails extends StatefulWidget {
   final Event event;
   final Venue venue;
-  final AppUser? creator;
   final String currentAppUserId;
 
   const EventDetails({
     super.key,
     required this.event,
     required this.venue,
-    this.creator,
     required this.currentAppUserId,
   });
 
@@ -29,11 +29,13 @@ class EventDetails extends StatefulWidget {
 }
 
 class _EventDetailsState extends State<EventDetails> {
-  final EventService _attendanceService = EventService();
+  final EventService _eventService = EventService();
+  final UserService _userService = UserService();
 
-  List<AppUser> _interestedAppUsers = [];
-  List<AppUser> _attendingAppUsers = [];
-  EventAttendance? _AppUserAttendance;
+  List<AppUser> _interestedUsers = [];
+  List<AppUser> _attendingUsers = [];
+  EventAttendance? _userAttendance;
+  AppUser? _creator;
   bool _isLoading = true;
 
   @override
@@ -46,71 +48,111 @@ class _EventDetailsState extends State<EventDetails> {
     setState(() => _isLoading = true);
 
     await Future.wait([
-      _loadInterestedAppUsers(),
-      _loadAttendingAppUsers(),
-      _loadAppUserAttendance(),
+      _loadCreator(),
+      _loadInterestedUsers(),
+      _loadAttendingUsers(),
+      _loadUserAttendance(),
     ]);
 
     setState(() => _isLoading = false);
   }
 
-  Future<void> _loadInterestedAppUsers() async {
-    final attendances = await _attendanceService.getInterestedUsers(widget.event.id);
-    final AppUsers = <AppUser>[];
-    for (final attendance in attendances) {
-      final AppUser = await _getAppUserById(attendance.userId);
-      if (AppUser != null) AppUsers.add(AppUser);
+  Future<void> _loadCreator() async {
+    try {
+      _creator = await _userService.getUserById(widget.event.createdByUserId);
+    } catch (e) {
+      print('Error loading creator: $e');
+      _creator = null;
     }
-    setState(() => _interestedAppUsers = AppUsers);
   }
 
-  Future<void> _loadAttendingAppUsers() async {
-    final attendances = await _attendanceService.getAttendingUsers(widget.event.id);
-    final AppUsers = <AppUser>[];
-    for (final attendance in attendances) {
-      final AppUser = await _getAppUserById(attendance.userId);
-      if (AppUser != null) AppUsers.add(AppUser);
+  Future<void> _loadInterestedUsers() async {
+    try {
+      final attendances = await _eventService.getInterestedUsers(widget.event.id);
+      final users = <AppUser>[];
+      for (final attendance in attendances) {
+        final user = await _userService.getUserById(attendance.userId);
+        if (user != null) users.add(user);
+      }
+      setState(() => _interestedUsers = users);
+    } catch (e) {
+      print('Error loading interested users: $e');
+      setState(() => _interestedUsers = []);
     }
-    setState(() => _attendingAppUsers = AppUsers);
   }
 
-  Future<void> _loadAppUserAttendance() async {
-    final attendance = await _attendanceService.getUserAttendance(
-      widget.event.id,
-      widget.currentAppUserId,
-    );
-    setState(() => _AppUserAttendance = attendance);
+  Future<void> _loadAttendingUsers() async {
+    try {
+      final attendances = await _eventService.getAttendingUsers(widget.event.id);
+      final users = <AppUser>[];
+      for (final attendance in attendances) {
+        final user = await _userService.getUserById(attendance.userId);
+        if (user != null) users.add(user);
+      }
+      setState(() => _attendingUsers = users);
+    } catch (e) {
+      print('Error loading attending users: $e');
+      setState(() => _attendingUsers = []);
+    }
+  }
+
+  Future<void> _loadUserAttendance() async {
+    try {
+      final attendance = await _eventService.getUserAttendance(
+        widget.event.id,
+        widget.currentAppUserId,
+      );
+      setState(() => _userAttendance = attendance);
+    } catch (e) {
+      print('Error loading user attendance: $e');
+      setState(() => _userAttendance = null);
+    }
   }
 
   Future<void> _toggleInterest() async {
-    if (_AppUserAttendance?.status == AttendanceStatus.interested) {
-      await _attendanceService.removeAttendance(widget.event.id, widget.currentAppUserId);
-    } else {
-      await _attendanceService.setAttendance(
-        widget.event.id,
-        widget.currentAppUserId,
-        AttendanceStatus.interested,
-      );
+    try {
+      if (_userAttendance?.status == AttendanceStatus.interested) {
+        await _eventService.removeAttendance(widget.event.id, widget.currentAppUserId);
+      } else {
+        await _eventService.setAttendance(
+          widget.event.id,
+          widget.currentAppUserId,
+          AttendanceStatus.interested,
+        );
+      }
+      await _loadAllData();
+    } catch (e) {
+      _showErrorSnackBar('Error updating interest: $e');
     }
-    await _loadAllData();
   }
 
   Future<void> _toggleAttendance() async {
-    if (_AppUserAttendance?.status == AttendanceStatus.attending) {
-      await _attendanceService.removeAttendance(widget.event.id, widget.currentAppUserId);
-    } else {
-      await _attendanceService.setAttendance(
-        widget.event.id,
-        widget.currentAppUserId,
-        AttendanceStatus.attending,
-      );
+    try {
+      if (_userAttendance?.status == AttendanceStatus.attending) {
+        await _eventService.removeAttendance(widget.event.id, widget.currentAppUserId);
+      } else {
+        await _eventService.setAttendance(
+          widget.event.id,
+          widget.currentAppUserId,
+          AttendanceStatus.attending,
+        );
+      }
+      await _loadAllData();
+    } catch (e) {
+      _showErrorSnackBar('Error updating attendance: $e');
     }
-    await _loadAllData();
   }
 
-  Future<AppUser?> _getAppUserById(String AppUserId) async {
-    // Call your getAppUserById function here
-    return null;
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red.shade400,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
   }
 
   @override
@@ -139,8 +181,8 @@ class _EventDetailsState extends State<EventDetails> {
       );
     }
 
-    final isInterested = _AppUserAttendance?.status == AttendanceStatus.interested;
-    final isAttending = _AppUserAttendance?.status == AttendanceStatus.attending;
+    final isInterested = _userAttendance?.status == AttendanceStatus.interested;
+    final isAttending = _userAttendance?.status == AttendanceStatus.attending;
 
     return Scaffold(
       body: Container(
@@ -185,10 +227,19 @@ class _EventDetailsState extends State<EventDetails> {
                 background: Stack(
                   fit: StackFit.expand,
                   children: [
-                    Image.network(
-                      widget.event.bannerPath ??
-                          widget.venue.bannerPath ??
-                          "https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?q=80&w=2070&auto=format&fit=crop",
+                    widget.event.bannerPath != null
+                        ? Image.network(
+                      widget.event.bannerPath!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Image.network(
+                          widget.venue.bannerPath ?? "https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?q=80&w=2070&auto=format&fit=crop",
+                          fit: BoxFit.cover,
+                        );
+                      },
+                    )
+                        : Image.network(
+                      widget.venue.bannerPath ?? "https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?q=80&w=2070&auto=format&fit=crop",
                       fit: BoxFit.cover,
                     ),
                     DecoratedBox(
@@ -199,7 +250,7 @@ class _EventDetailsState extends State<EventDetails> {
                           colors: [
                             Colors.black.withValues(alpha: 0.3),
                             Colors.black.withValues(alpha: 0.5),
-                            Color(0xFF0F0F1A).withValues(alpha: 0.95),
+                            const Color(0xFF0F0F1A).withValues(alpha: 0.95),
                           ],
                           stops: const [0.3, 0.6, 1.0],
                         ),
@@ -342,7 +393,7 @@ class _EventDetailsState extends State<EventDetails> {
                     ),
                     const SizedBox(height: 24),
 
-                    if (widget.creator != null)
+                    if (_creator != null)
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
@@ -378,8 +429,8 @@ class _EventDetailsState extends State<EventDetails> {
                               ),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(24),
-                                child: widget.creator!.photoUrl != null
-                                    ? Image.network(widget.creator!.photoUrl!, fit: BoxFit.cover)
+                                child: _creator!.photoUrl != null
+                                    ? Image.network(_creator!.photoUrl!, fit: BoxFit.cover)
                                     : Icon(Icons.person, color: Colors.white.withValues(alpha: 0.8), size: 28),
                               ),
                             ),
@@ -398,7 +449,7 @@ class _EventDetailsState extends State<EventDetails> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    widget.creator!.name,
+                                    _creator!.name,
                                     style: const TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w600,
@@ -437,7 +488,7 @@ class _EventDetailsState extends State<EventDetails> {
                           child: _buildActionButton(
                             icon: isInterested ? Icons.star : Icons.star_outline,
                             label: "Interested",
-                            count: _interestedAppUsers.length,
+                            count: _interestedUsers.length,
                             isActive: isInterested,
                             activeColor: Colors.amber,
                             onTap: _toggleInterest,
@@ -448,7 +499,7 @@ class _EventDetailsState extends State<EventDetails> {
                           child: _buildActionButton(
                             icon: isAttending ? Icons.check_circle : Icons.check_circle_outline,
                             label: "Attending",
-                            count: _attendingAppUsers.length,
+                            count: _attendingUsers.length,
                             isActive: isAttending,
                             activeColor: Colors.green,
                             onTap: _toggleAttendance,
@@ -525,18 +576,18 @@ class _EventDetailsState extends State<EventDetails> {
                     ),
                     const SizedBox(height: 24),
 
-                    if (_interestedAppUsers.isNotEmpty)
+                    if (_interestedUsers.isNotEmpty)
                       _buildPeopleSection(
                         title: "Interested",
-                        AppUsers: _interestedAppUsers,
+                        users: _interestedUsers,
                         icon: Icons.star,
                         color: Colors.amber,
                       ),
 
-                    if (_attendingAppUsers.isNotEmpty)
+                    if (_attendingUsers.isNotEmpty)
                       _buildPeopleSection(
                         title: "Attending",
-                        AppUsers: _attendingAppUsers,
+                        users: _attendingUsers,
                         icon: Icons.check_circle,
                         color: Colors.green,
                       ),
@@ -623,12 +674,12 @@ class _EventDetailsState extends State<EventDetails> {
 
   Widget _buildPeopleSection({
     required String title,
-    required List<AppUser> AppUsers,
+    required List<AppUser> users,
     required IconData icon,
     required Color color,
   }) {
-    final displayAppUsers = AppUsers.take(8).toList();
-    final remainingCount = AppUsers.length - displayAppUsers.length;
+    final displayUsers = users.take(8).toList();
+    final remainingCount = users.length - displayUsers.length;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 24),
@@ -657,7 +708,7 @@ class _EventDetailsState extends State<EventDetails> {
               Icon(icon, size: 18, color: color),
               const SizedBox(width: 8),
               Text(
-                "$title • ${AppUsers.length}",
+                "$title • ${users.length}",
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -671,7 +722,7 @@ class _EventDetailsState extends State<EventDetails> {
             spacing: 12,
             runSpacing: 12,
             children: [
-              ...displayAppUsers.map((AppUser) => _buildAppUserAvatar(AppUser, color)),
+              ...displayUsers.map((user) => _buildUserAvatar(user, color)),
               if (remainingCount > 0)
                 Container(
                   width: 48,
@@ -704,31 +755,41 @@ class _EventDetailsState extends State<EventDetails> {
     );
   }
 
-  Widget _buildAppUserAvatar(AppUser AppUser, Color color) {
+  Widget _buildUserAvatar(AppUser user, Color color) {
     return Column(
       children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.2),
-              width: 1,
+        GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ProfileScreen(userId: user.id),
+              ),
+            );
+          },
+          child: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.2),
+                width: 1,
+              ),
             ),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            child: AppUser.photoUrl != null
-                ? Image.network(AppUser.photoUrl!, fit: BoxFit.cover)
-                : Icon(Icons.person, color: Colors.white.withValues(alpha: 0.8), size: 28),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: user.photoUrl != null
+                  ? Image.network(user.photoUrl!, fit: BoxFit.cover)
+                  : Icon(Icons.person, color: Colors.white.withValues(alpha: 0.8), size: 28),
+            ),
           ),
         ),
         const SizedBox(height: 4),
         SizedBox(
           width: 60,
           child: Text(
-            AppUser.name,
+            user.name,
             style: TextStyle(
               fontSize: 10,
               color: Colors.white.withValues(alpha: 0.7),

@@ -1,14 +1,13 @@
-// widgets/custom_app_bar.dart
 import 'package:flutter/material.dart';
 
-class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
+class TopNavBar extends StatelessWidget implements PreferredSizeWidget {
   final String? userPhotoUrl;
   final VoidCallback? onMyEventsTap;
   final VoidCallback? onMyVenuesTap;
   final VoidCallback? onSettingsTap;
   final VoidCallback? onLogoutTap;
 
-  const CustomAppBar({
+  const TopNavBar({
     super.key,
     this.userPhotoUrl,
     this.onMyEventsTap,
@@ -75,8 +74,8 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                 offset: const Offset(0, 50),
                 color: const Color(0xFF1A1A3E),
                 elevation: 8,
-                padding: EdgeInsets.zero, // Remove default padding
-                constraints: const BoxConstraints(), // Remove constraints
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                   side: BorderSide(
@@ -88,7 +87,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: Colors.purple.shade600, // Solid purple
+                    color: Colors.purple.shade600,
                     shape: BoxShape.circle,
                     border: Border.all(
                       color: Colors.white.withValues(alpha: 0.2),

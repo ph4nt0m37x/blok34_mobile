@@ -1,15 +1,13 @@
-// screens/search/search_screen.dart
+import 'package:blok34_mobile/screens/profile/profile_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:blok34_mobile/models/app_user.dart';
 import 'package:blok34_mobile/models/event.dart';
 import 'package:blok34_mobile/models/venue.dart';
-// import 'package:blok34_mobile/services/search_service.dart';
 import 'package:blok34_mobile/widgets/horizontal_scroll_list.dart';
 import 'package:blok34_mobile/widgets/user_card.dart';
 import 'package:blok34_mobile/widgets/event_card.dart';
 import 'package:blok34_mobile/widgets/venue_card.dart';
-import '../../enums/event_category.dart';
-import '../../enums/venue_category.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -20,173 +18,18 @@ class SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController _searchController = TextEditingController();
-  // final SearchService _searchService = SearchService();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   bool _isLoading = false;
   bool _hasSearched = false;
-  // SearchResult? _searchResult;
 
-  // Mock data
-  List<AppUser> _mockUsers = [];
-  List<Event> _mockEvents = [];
-  List<Venue> _mockVenues = [];
+  List<AppUser> _searchResultsUsers = [];
+  List<Event> _searchResultsEvents = [];
+  List<Venue> _searchResultsVenues = [];
 
   @override
   void initState() {
     super.initState();
-    _loadMockData();
-  }
-
-  void _loadMockData() {
-    // Mock Users
-    _mockUsers = [
-      AppUser(
-        id: '1',
-        username: 'johndoe',
-        name: 'John Doe',
-        email: 'john@example.com',
-        photoUrl: null,
-      ),
-      AppUser(
-        id: '2',
-        username: 'janesmith',
-        name: 'Jane Smith',
-        email: 'jane@example.com',
-        photoUrl: null,
-      ),
-      AppUser(
-        id: '3',
-        username: 'musiclover',
-        name: 'Mike Johnson',
-        email: 'mike@example.com',
-        photoUrl: null,
-      ),
-      AppUser(
-        id: '4',
-        username: 'partyqueen',
-        name: 'Sarah Williams',
-        email: 'sarah@example.com',
-        photoUrl: null,
-      ),
-    ];
-
-    // Mock Events
-    _mockEvents = [
-      Event(
-        id: '1',
-        title: 'Summer Music Festival',
-        description: 'Join us for an amazing day of live music, food, and fun in the sun! Featuring top local and international artists.',
-        startDate: DateTime.now().add(const Duration(days: 15)),
-        endDate: DateTime.now().add(const Duration(days: 15, hours: 8)),
-        venueId: '1',
-        category: EventCategory.liveMusic,
-        createdByUserId: 'user1',
-        bannerPath: null,
-      ),
-      Event(
-        id: '2',
-        title: 'Tech Conference 2026',
-        description: 'Annual technology conference featuring workshops, keynotes, and networking opportunities with industry leaders.',
-        startDate: DateTime.now().add(const Duration(days: 30)),
-        endDate: DateTime.now().add(const Duration(days: 32)),
-        venueId: '2',
-        category: EventCategory.techTalk,
-        createdByUserId: 'user2',
-        bannerPath: null,
-      ),
-      Event(
-        id: '3',
-        title: 'Food Truck Rally',
-        description: 'Sample delicious food from over 20 local food trucks. Live music and family-friendly activities available.',
-        startDate: DateTime.now().add(const Duration(days: 7)),
-        endDate: DateTime.now().add(const Duration(days: 7, hours: 6)),
-        venueId: '3',
-        category: EventCategory.beerTasting,
-        createdByUserId: 'user3',
-        bannerPath: null,
-      ),
-      Event(
-        id: '4',
-        title: 'Art Exhibition Opening',
-        description: 'Opening night of the annual contemporary art exhibition featuring emerging local artists.',
-        startDate: DateTime.now().add(const Duration(days: 10)),
-        endDate: DateTime.now().add(const Duration(days: 10, hours: 4)),
-        venueId: '4',
-        category: EventCategory.art,
-        createdByUserId: 'user4',
-        bannerPath: null,
-      ),
-      Event(
-        id: '5',
-        title: 'Business Networking Mixer',
-        description: 'Connect with local business professionals over drinks and appetizers. Bring your business cards!',
-        startDate: DateTime.now().add(const Duration(days: 5)),
-        endDate: DateTime.now().add(const Duration(days: 5, hours: 3)),
-        venueId: '5',
-        category: EventCategory.startupEvent,
-        createdByUserId: 'user5',
-        bannerPath: null,
-      ),
-    ];
-
-    // Mock Venues
-    _mockVenues = [
-      Venue(
-        id: '1',
-        name: 'The Jazz Club',
-        category: VenueCategory.bar,
-        description: 'Live jazz music every night. Great cocktails and atmosphere.',
-        address: '123 Main St, Downtown',
-        phone: '+1234567890',
-        isPublic: true,
-        venueManagerId: 'user1',
-        bannerPath: null,
-      ),
-      Venue(
-        id: '2',
-        name: 'Convention Center',
-        category: VenueCategory.communityCenter,
-        description: 'Large venue perfect for conferences and trade shows.',
-        address: '456 Convention Blvd',
-        phone: '+1234567891',
-        isPublic: true,
-        venueManagerId: 'user2',
-        bannerPath: null,
-      ),
-      Venue(
-        id: '3',
-        name: 'Parkside Amphitheater',
-        category: VenueCategory.park,
-        description: 'Outdoor venue surrounded by nature. Perfect for concerts and festivals.',
-        address: '789 Park Avenue',
-        phone: '+1234567892',
-        isPublic: true,
-        venueManagerId: 'user3',
-        bannerPath: null,
-      ),
-      Venue(
-        id: '4',
-        name: 'The Gallery Space',
-        category: VenueCategory.gallery,
-        description: 'Modern art gallery with rotating exhibitions.',
-        address: '321 Art District',
-        phone: '+1234567893',
-        isPublic: false,
-        venueManagerId: 'user4',
-        bannerPath: null,
-      ),
-      Venue(
-        id: '5',
-        name: 'Sports Arena',
-        category: VenueCategory.stadium,
-        description: 'Multi-purpose arena hosting sports events and concerts.',
-        address: '555 Arena Drive',
-        phone: '+1234567894',
-        isPublic: true,
-        venueManagerId: 'user5',
-        bannerPath: null,
-      ),
-    ];
   }
 
   Future<void> _performSearch(String query) async {
@@ -195,70 +38,89 @@ class _SearchScreenState extends State<SearchScreen> {
     setState(() {
       _isLoading = true;
       _hasSearched = true;
+      _searchResultsUsers = [];
+      _searchResultsEvents = [];
+      _searchResultsVenues = [];
     });
 
-    // MOCK SEARCH - Filter based on query
-    await Future.delayed(const Duration(milliseconds: 500)); // Simulate network delay
+    final lowerQuery = query.toLowerCase().trim();
 
-    final lowerQuery = query.toLowerCase();
-
-    // Filter users
-    final filteredUsers = _mockUsers.where((user) {
-      return user.name.toLowerCase().contains(lowerQuery) ||
-          user.username.toLowerCase().contains(lowerQuery);
-    }).toList();
-
-    // Filter events
-    final filteredEvents = _mockEvents.where((event) {
-      return event.title.toLowerCase().contains(lowerQuery) ||
-          event.description.toLowerCase().contains(lowerQuery);
-    }).toList();
-
-    // Filter venues
-    final filteredVenues = _mockVenues.where((venue) {
-      return venue.name.toLowerCase().contains(lowerQuery) ||
-          venue.description.toLowerCase().contains(lowerQuery);
-    }).toList();
-
-    setState(() {
-      _mockUsers = filteredUsers;
-      _mockEvents = filteredEvents;
-      _mockVenues = filteredVenues;
-      _isLoading = false;
-    });
-
-    /* ACTUAL SEARCH CODE - Uncomment when ready
     try {
-      final result = await _searchService.search(query);
+      // Search Users
+      final usersQuery = await _firestore
+          .collection('users')
+          .get();
+
+      final users = usersQuery.docs
+          .map((doc) => AppUser.fromJson(doc.data(), doc.id))
+          .where((user) =>
+      user.name.toLowerCase().contains(lowerQuery) ||
+          user.username.toLowerCase().contains(lowerQuery))
+          .toList();
+
+      // Search Events
+      final eventsQuery = await _firestore
+          .collection('events')
+          .get();
+
+      final events = eventsQuery.docs
+          .map((doc) => Event.fromJson(doc.data(), doc.id))
+          .where((event) =>
+      event.title.toLowerCase().contains(lowerQuery) ||
+          event.description.toLowerCase().contains(lowerQuery))
+          .toList();
+
+      // Search Venues
+      final venuesQuery = await _firestore
+          .collection('venues')
+          .get();
+
+      final venues = venuesQuery.docs
+          .map((doc) => Venue.fromJson(doc.data(), doc.id))
+          .where((venue) =>
+      venue.name.toLowerCase().contains(lowerQuery) ||
+          venue.description.toLowerCase().contains(lowerQuery))
+          .toList();
+
       setState(() {
-        _searchResult = result;
+        _searchResultsUsers = users;
+        _searchResultsEvents = events;
+        _searchResultsVenues = venues;
+        _isLoading = false;
       });
     } catch (e) {
+      print('Error searching: $e');
+      setState(() {
+        _isLoading = false;
+      });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error searching: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: Colors.red.shade400,
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
       }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
     }
-    */
   }
 
   void _clearSearch() {
     _searchController.clear();
     setState(() {
       _hasSearched = false;
-      // _searchResult = null;
-      _loadMockData(); // Reset mock data
+      _searchResultsUsers = [];
+      _searchResultsEvents = [];
+      _searchResultsVenues = [];
     });
+  }
+
+  int get _totalResults {
+    return _searchResultsUsers.length +
+        _searchResultsEvents.length +
+        _searchResultsVenues.length;
   }
 
   @override
@@ -269,8 +131,6 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // final searchResult = _searchResult; // Uncomment for actual code
-
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -346,7 +206,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     const SizedBox(height: 12),
 
                     // Search Stats (only show after search)
-                    if (_hasSearched && !_isLoading) ...[
+                    if (_hasSearched && !_isLoading && _totalResults > 0) ...[
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         decoration: BoxDecoration(
@@ -369,22 +229,22 @@ class _SearchScreenState extends State<SearchScreen> {
                           children: [
                             _buildStatItem(
                               "Total",
-                              (_mockUsers.length + _mockEvents.length + _mockVenues.length).toString(),
+                              _totalResults.toString(),
                               Icons.search,
                             ),
                             _buildStatItem(
                               "Users",
-                              _mockUsers.length.toString(),
+                              _searchResultsUsers.length.toString(),
                               Icons.people,
                             ),
                             _buildStatItem(
                               "Events",
-                              _mockEvents.length.toString(),
+                              _searchResultsEvents.length.toString(),
                               Icons.event,
                             ),
                             _buildStatItem(
                               "Venues",
-                              _mockVenues.length.toString(),
+                              _searchResultsVenues.length.toString(),
                               Icons.location_on,
                             ),
                           ],
@@ -490,14 +350,29 @@ class _SearchScreenState extends State<SearchScreen> {
     // Loading state
     if (_isLoading) {
       return const Center(
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(Colors.cyanAccent),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.cyanAccent),
+            ),
+            SizedBox(height: 16),
+            Text(
+              "Searching...",
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.white54,
+              ),
+            ),
+          ],
         ),
       );
     }
 
     // No results state
-    if (_mockUsers.isEmpty && _mockEvents.isEmpty && _mockVenues.isEmpty) {
+    if (_searchResultsUsers.isEmpty &&
+        _searchResultsEvents.isEmpty &&
+        _searchResultsVenues.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -554,9 +429,9 @@ class _SearchScreenState extends State<SearchScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Users Section
-          if (_mockUsers.isNotEmpty)
+          if (_searchResultsUsers.isNotEmpty)
             HorizontalScrollList<AppUser>(
-              items: _mockUsers,
+              items: _searchResultsUsers,
               title: "Users",
               titleIcon: Icons.people,
               itemWidth: 165,
@@ -567,48 +442,41 @@ class _SearchScreenState extends State<SearchScreen> {
                 return UserCard(
                   user: user,
                   onActionPressed: () {
-                    // Navigate to user profile
-                    // Navigator.push(context, MaterialPageRoute(builder: (context) => UserProfileScreen(userId: user.id)));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Viewing profile of ${user.name}'),
-                        duration: const Duration(seconds: 1),
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ProfileScreen(userId: user.id),
                       ),
                     );
                   },
                 );
               },
-              onSeeAllTap: () {
-                // Navigate to all users results
-              },
             ),
 
-          const SizedBox(height: 24),
+          if (_searchResultsUsers.isNotEmpty)
+            const SizedBox(height: 24),
 
           // Events Section
-          if (_mockEvents.isNotEmpty)
+          if (_searchResultsEvents.isNotEmpty)
             HorizontalScrollList<Event>(
-              items: _mockEvents,
+              items: _searchResultsEvents,
               title: "Events",
               titleIcon: Icons.event,
               itemWidth: 300,
               itemHeight: 350,
-              // spacing: 12,
               padding: const EdgeInsets.symmetric(horizontal: 20),
               itemBuilder: (context, event) {
                 return EventCard(event: event);
               },
-              onSeeAllTap: () {
-                // Navigate to all events results
-              },
             ),
 
-          const SizedBox(height: 24),
+          if (_searchResultsEvents.isNotEmpty)
+            const SizedBox(height: 24),
 
           // Venues Section
-          if (_mockVenues.isNotEmpty)
+          if (_searchResultsVenues.isNotEmpty)
             HorizontalScrollList<Venue>(
-              items: _mockVenues,
+              items: _searchResultsVenues,
               title: "Venues",
               titleIcon: Icons.location_on,
               itemWidth: 289,
@@ -617,9 +485,6 @@ class _SearchScreenState extends State<SearchScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               itemBuilder: (context, venue) {
                 return VenueCard(venue: venue);
-              },
-              onSeeAllTap: () {
-                // Navigate to all venues results
               },
             ),
         ],

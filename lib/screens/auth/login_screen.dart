@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:blok34_mobile/services/auth_service.dart';
 import 'package:provider/provider.dart';
-
-import '../../providers/auth_state_provider.dart';
+import 'package:blok34_mobile/providers/auth_state_provider.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});

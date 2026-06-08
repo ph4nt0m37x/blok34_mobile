@@ -8,6 +8,7 @@ import 'package:blok34_mobile/screens/events/event_form_screen.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/auth_state_provider.dart';
+import '../../services/event_service.dart';
 import '../../utils/text_formatter.dart';
 
 class EventsScreen extends StatefulWidget {
@@ -25,54 +26,33 @@ class _EventsScreenState extends State<EventsScreen> {
   Timer? _debounce;
   bool _showCategoryFilter = false;
 
-  final List<Event> events = [
-    // MOCK EVENTS (UI only)
-    Event(
-      id: '1',
-      title: 'Flutter Meetup',
-      description: 'Meet local Flutter developers.',
-      startDate: DateTime.now().add(const Duration(days: 1)),
-      venueId: 'venue1',
-      category: EventCategory.meetup,
-      createdByUserId: 'user1',
-      bannerPath: null,
-    ),
-    Event(
-      id: '2',
-      title: 'Rock Concert',
-      description: 'Live music all night.',
-      startDate: DateTime.now().add(const Duration(days: 2)),
-      venueId: 'venue2',
-      category: EventCategory.liveMusic,
-      createdByUserId: 'user2',
-      bannerPath: null,
-    ),
-    Event(
-      id: '3',
-      title: 'Board Games Night',
-      description: 'Bring your favorite games.',
-      startDate: DateTime.now().add(const Duration(days: 3)),
-      venueId: 'venue3',
-      category: EventCategory.culturalEvent,
-      createdByUserId: 'user3',
-      bannerPath: null,
-    ),
-    Event(
-      id: '4',
-      title: 'Startup Networking',
-      description: 'Meet founders and investors.',
-      startDate: DateTime.now().add(const Duration(days: 5)),
-      venueId: 'venue4',
-      category: EventCategory.beerTasting,
-      createdByUserId: 'user4',
-      bannerPath: null,
-    ),
-  ];
+  final EventService _eventService = EventService();
+
+  List<Event> _upcomingEvents = [];
+
+  bool _isLoading = true;
+
 
   @override
   void initState() {
     super.initState();
-    _filteredEvents = events;
+    _loadEvents();
+  }
+
+  Future<void> _loadEvents() async {
+    try {
+      final events = await _eventService.getUpcomingEvents();
+
+      setState(() {
+        _upcomingEvents = events;
+        _filteredEvents = events;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -95,9 +75,9 @@ class _EventsScreenState extends State<EventsScreen> {
     // for now, filtering locally
     setState(() {
       if (query.isEmpty && _selectedCategory == null) {
-        _filteredEvents = events;
+        _filteredEvents = _upcomingEvents;
       } else {
-        _filteredEvents = events.where((event) {
+        _filteredEvents = _upcomingEvents.where((event) {
           final matchesQuery = query.isEmpty ||
               event.title.toLowerCase().contains(query.toLowerCase()) ||
               event.description.toLowerCase().contains(query.toLowerCase());
@@ -111,21 +91,25 @@ class _EventsScreenState extends State<EventsScreen> {
     });
   }
 
-  void _searchByCategory(EventCategory? category) async {
+  Future<void> _searchByCategory(EventCategory? category) async {
     setState(() {
       _selectedCategory = category;
-      _isSearching = category != null;
       _showCategoryFilter = false;
+      _isLoading = true;
     });
 
-    if (category != null) {
-      // final results = await getEventsByCategory(category); // Your function
-      // setState(() {
-      //   _filteredEvents = results;
-      // });
+    List<Event> results;
+
+    if (category == null) {
+      results = await _eventService.getUpcomingEvents();
+    } else {
+      results = await _eventService.getUpcomingEventsByCategory(category);
     }
-    // for now, filter locally
-    _searchEvents(_searchController.text);
+
+    setState(() {
+      _filteredEvents = results;
+      _isLoading = false;
+    });
   }
 
   void _clearFilters() {

@@ -2,6 +2,7 @@ import 'package:blok34_mobile/models/event.dart';
 import 'package:blok34_mobile/models/event_attendance.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:blok34_mobile/enums/attendance_status.dart';
+import 'package:blok34_mobile/enums/event_category.dart';
 
 class EventService {
 
@@ -74,10 +75,28 @@ class EventService {
   }
 
   Future<List<Event>> getEventsByVenueId(String venueId) async {
+    final now = DateTime.now();
+
     final snap = await FirebaseFirestore.instance
         .collection('events')
         .where('venueId', isEqualTo: venueId)
+        .where('startDate', isGreaterThanOrEqualTo: now)
         .orderBy('startDate', descending: true)
+        .get();
+
+    return snap.docs
+        .map((doc) => Event.fromJson(doc.data(), doc.id))
+        .toList();
+  }
+
+  Future<List<Event>> getUpcomingEventsByCategory(EventCategory category,) async {
+    final now = DateTime.now();
+
+    final snap = await FirebaseFirestore.instance
+        .collection('events')
+        .where('category', isEqualTo: category.name)
+        .where('startDate', isGreaterThanOrEqualTo: now)
+        .orderBy('startDate')
         .get();
 
     return snap.docs
@@ -195,7 +214,29 @@ class EventService {
     }
   }
 
+  Future<List<EventAttendance>> getEventsUserIsAttending(String userId) async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('event_attendance')
+        .where('userId', isEqualTo: userId)
+        .where('status', isEqualTo: AttendanceStatus.attending.name)
+        .get();
 
+    return snapshot.docs
+        .map((doc) => EventAttendance.fromJson(doc.data(), doc.id))
+        .toList();
+  }
+
+  Future<List<EventAttendance>> getEventsUserIsInterestedIn(String userId) async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('event_attendance')
+        .where('userId', isEqualTo: userId)
+        .where('status', isEqualTo: AttendanceStatus.interested.name)
+        .get();
+
+    return snapshot.docs
+        .map((doc) => EventAttendance.fromJson(doc.data(), doc.id))
+        .toList();
+  }
 
 
 }

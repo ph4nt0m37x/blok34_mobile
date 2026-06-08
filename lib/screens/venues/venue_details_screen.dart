@@ -7,23 +7,58 @@ import 'package:blok34_mobile/widgets/glass_info_card.dart';
 import 'package:blok34_mobile/widgets/horizontal_scroll_list.dart';
 import 'package:blok34_mobile/utils/text_formatter.dart';
 import 'package:provider/provider.dart';
+import 'package:blok34_mobile/providers/auth_state_provider.dart';
+import 'package:blok34_mobile/services/event_service.dart';
 
-import '../../providers/auth_state_provider.dart';
-
-class VenueDetails extends StatelessWidget {
+class VenueDetails extends StatefulWidget {
   final Venue venue;
-  final List<Event> upcomingEvents;
-
 
   const VenueDetails({
     super.key,
     required this.venue,
-    this.upcomingEvents = const [],
   });
+
+  @override
+  State<VenueDetails> createState() => _VenueDetailsState();
+}
+
+class _VenueDetailsState extends State<VenueDetails> {
+  final EventService _eventService = EventService();
+  List<Event> _upcomingEvents = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUpcomingEvents();
+  }
+
+  Future<void> _loadUpcomingEvents() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final events = await _eventService.getEventsByVenueId(widget.venue.id);
+
+
+      setState(() {
+        _upcomingEvents = events;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading upcoming events: $e');
+      setState(() {
+        _upcomingEvents = [];
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final authProvider = context.read<AuthStateProvider>();
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -67,8 +102,19 @@ class VenueDetails extends StatelessWidget {
                 background: Stack(
                   fit: StackFit.expand,
                   children: [
-                    Image.network(
-                      venue.bannerPath ?? "https://flutter.github.io/assets-for-api-docs/assets/widgets/owl.jpg",
+                    widget.venue.bannerPath != null
+                        ? Image.network(
+                      widget.venue.bannerPath!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Image.network(
+                          "https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?q=80&w=2070&auto=format&fit=crop",
+                          fit: BoxFit.cover,
+                        );
+                      },
+                    )
+                        : Image.network(
+                      "https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?q=80&w=2070&auto=format&fit=crop",
                       fit: BoxFit.cover,
                     ),
                     DecoratedBox(
@@ -79,7 +125,7 @@ class VenueDetails extends StatelessWidget {
                           colors: [
                             Colors.black.withValues(alpha: 0.3),
                             Colors.black.withValues(alpha: 0.5),
-                            Color(0xFF0F0F1A).withValues(alpha: 0.95),
+                            const Color(0xFF0F0F1A).withValues(alpha: 0.95),
                           ],
                           stops: const [0.3, 0.6, 1.0],
                         ),
@@ -91,12 +137,12 @@ class VenueDetails extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                         decoration: BoxDecoration(
-                          color: venue.isPublic
+                          color: widget.venue.isPublic
                               ? Colors.lightBlueAccent.withValues(alpha: 0.15)
                               : Colors.purpleAccent.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(25),
                           border: Border.all(
-                            color: venue.isPublic
+                            color: widget.venue.isPublic
                                 ? Colors.blueAccent.withValues(alpha: 0.3)
                                 : Colors.purpleAccent.withValues(alpha: 0.3),
                             width: 0.5,
@@ -106,20 +152,16 @@ class VenueDetails extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              venue.isPublic ? Icons.public : Icons.lock_outline,
+                              widget.venue.isPublic ? Icons.public : Icons.lock_outline,
                               size: 14,
-                              color: venue.isPublic
-                                  ? Colors.white.withValues(alpha: 0.8)
-                                  : Colors.white.withValues(alpha: 0.8),
+                              color: Colors.white.withValues(alpha: 0.8),
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              venue.isPublic ? "Public Venue" : "Private Venue",
+                              widget.venue.isPublic ? "Public Venue" : "Private Venue",
                               style: TextStyle(
                                 fontSize: 12,
-                                color: venue.isPublic
-                                    ? Colors.white.withValues(alpha: 0.8)
-                                    : Colors.white.withValues(alpha: 0.8),
+                                color: Colors.white.withValues(alpha: 0.8),
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -146,7 +188,7 @@ class VenueDetails extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            venue.name,
+                            widget.venue.name,
                             style: const TextStyle(
                               fontSize: 34,
                               fontWeight: FontWeight.bold,
@@ -155,10 +197,19 @@ class VenueDetails extends StatelessWidget {
                             ),
                           ),
                         ),
-                        if (venue.isPublic)
+                        if (widget.venue.isPublic && authProvider.currentUser != null || widget.venue.venueManagerId == authProvider.currentUser?.id.toString())
                           GestureDetector(
                             onTap: () {
-                              Navigator.push(context, MaterialPageRoute(builder: (context) => EventFormScreen(currentUserId: authProvider.currentUser!.id,), ));
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => EventFormScreen(
+                                    currentUserId: authProvider.currentUser!.id,
+                                  ),
+                                ),
+                              ).then((_) {
+                                _loadUpcomingEvents();
+                              });
                             },
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -187,7 +238,7 @@ class VenueDetails extends StatelessWidget {
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
-                                    "Create",
+                                    "Create Event",
                                     style: TextStyle(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w600,
@@ -209,7 +260,7 @@ class VenueDetails extends StatelessWidget {
                           child: GlassInfoCard(
                             icon: Icons.location_on,
                             label: "Location",
-                            value: venue.address,
+                            value: widget.venue.address,
                             iconColor: Colors.cyan.shade300,
                           ),
                         ),
@@ -218,7 +269,7 @@ class VenueDetails extends StatelessWidget {
                           child: GlassInfoCard(
                             icon: Icons.phone,
                             label: "Phone",
-                            value: venue.phone,
+                            value: widget.venue.phone,
                             iconColor: Colors.blue.shade300,
                           ),
                         ),
@@ -227,7 +278,7 @@ class VenueDetails extends StatelessWidget {
                           child: GlassInfoCard(
                             icon: Icons.category,
                             label: "Category",
-                            value: TextFormatter.formatCategoryName(venue.category.name),
+                            value: TextFormatter.formatCategoryName(widget.venue.category.name),
                             iconColor: Colors.purple.shade300,
                           ),
                         ),
@@ -235,7 +286,6 @@ class VenueDetails extends StatelessWidget {
                     ),
                     const SizedBox(height: 24),
 
-                    // About section - glassmorphism
                     Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
@@ -291,7 +341,7 @@ class VenueDetails extends StatelessWidget {
                           ),
                           const SizedBox(height: 14),
                           Text(
-                            venue.description,
+                            widget.venue.description,
                             style: TextStyle(
                               fontSize: 14,
                               height: 1.6,
@@ -303,15 +353,51 @@ class VenueDetails extends StatelessWidget {
                     ),
                     const SizedBox(height: 32),
 
-                    // Upcoming Events Section using HorizontalScrollList
-                    HorizontalScrollList<Event>(
-                      items: upcomingEvents,
+                    // Upcoming Events Section
+                    _isLoading
+                        ? Container(
+                      padding: const EdgeInsets.all(40),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.white.withValues(alpha: 0.05),
+                            Colors.white.withValues(alpha: 0.02),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.08),
+                          width: 0.5,
+                        ),
+                      ),
+                      child: const Center(
+                        child: Column(
+                          children: [
+                            CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.cyanAccent),
+                            ),
+                            SizedBox(height: 12),
+                            Text(
+                              "Loading events...",
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.white54,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                        : HorizontalScrollList<Event>(
+                      items: _upcomingEvents,
                       title: "Upcoming Events",
                       titleIcon: Icons.event_available,
                       itemWidth: 300,
                       itemHeight: 330,
                       itemBuilder: (context, event) {
-                        return EventCard(event: event);
+                        return EventCard(
+                          event: event
+                        );
                       },
                       emptyStateWidget: Container(
                         padding: const EdgeInsets.all(40),
@@ -344,11 +430,20 @@ class VenueDetails extends StatelessWidget {
                                   color: Colors.white.withValues(alpha: 0.4),
                                 ),
                               ),
-                              if (venue.isPublic) ...[
+                              if (widget.venue.isPublic && authProvider.currentUser != null) ...[
                                 const SizedBox(height: 16),
                                 GestureDetector(
                                   onTap: () {
-                                    Navigator.push(context, MaterialPageRoute(builder: (context) => EventFormScreen(currentUserId: authProvider.currentUser!.id,), ));
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => EventFormScreen(
+                                          currentUserId: authProvider.currentUser!.id,
+                                        ),
+                                      ),
+                                    ).then((_) {
+                                      _loadUpcomingEvents();
+                                    });
                                   },
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
