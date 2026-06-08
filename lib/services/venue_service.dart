@@ -56,4 +56,42 @@ class VenueService {
         .toList();
   }
 
+  Future<List<Venue>> getAvailableVenues(String userId) async {
+    final publicVenuesFuture = FirebaseFirestore.instance
+        .collection('venues')
+        .where('isPublic', isEqualTo: true)
+        .get();
+
+    final ownedVenuesFuture = FirebaseFirestore.instance
+        .collection('venues')
+        .where('venueManagerId', isEqualTo: userId)
+        .get();
+
+    final results = await Future.wait([
+      publicVenuesFuture,
+      ownedVenuesFuture,
+    ]);
+
+    final Map<String, Venue> venues = {};
+
+    for (final doc in results[0].docs) {
+      venues[doc.id] = Venue.fromJson(doc.data(), doc.id);
+    }
+
+    for (final doc in results[1].docs) {
+      venues[doc.id] = Venue.fromJson(doc.data(), doc.id);
+    }
+
+    final venueList = venues.values.toList();
+
+    venueList.sort(
+          (a, b) => a.name.toLowerCase().compareTo(
+        b.name.toLowerCase(),
+      ),
+    );
+
+    return venueList;
+  }
+
+
 }

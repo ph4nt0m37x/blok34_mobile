@@ -70,7 +70,7 @@ class HorizontalScrollList<T> extends StatelessWidget {
                   TextButton(
                     onPressed: onSeeAllTap,
                     style: TextButton.styleFrom(
-                      padding: EdgeInsets.zero,
+                      padding: EdgeInsets.symmetric(),
                     ),
                     child: Text(
                       "See All →",

@@ -6,10 +6,14 @@ import 'package:blok34_mobile/widgets/event_card.dart';
 import 'package:blok34_mobile/widgets/glass_info_card.dart';
 import 'package:blok34_mobile/widgets/horizontal_scroll_list.dart';
 import 'package:blok34_mobile/utils/text_formatter.dart';
+import 'package:provider/provider.dart';
+
+import '../../providers/auth_state_provider.dart';
 
 class VenueDetails extends StatelessWidget {
   final Venue venue;
   final List<Event> upcomingEvents;
+
 
   const VenueDetails({
     super.key,
@@ -19,6 +23,7 @@ class VenueDetails extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = context.read<AuthStateProvider>();
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -153,7 +158,7 @@ class VenueDetails extends StatelessWidget {
                         if (venue.isPublic)
                           GestureDetector(
                             onTap: () {
-                              Navigator.push(context, MaterialPageRoute(builder: (context) => EventFormScreen(venues: [venue], currentUserId: '',), ));
+                              Navigator.push(context, MaterialPageRoute(builder: (context) => EventFormScreen(currentUserId: authProvider.currentUser!.id,), ));
                             },
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -343,7 +348,7 @@ class VenueDetails extends StatelessWidget {
                                 const SizedBox(height: 16),
                                 GestureDetector(
                                   onTap: () {
-                                    Navigator.push(context, MaterialPageRoute(builder: (context) => EventFormScreen(venues: [venue], currentUserId: '',), ));
+                                    Navigator.push(context, MaterialPageRoute(builder: (context) => EventFormScreen(currentUserId: authProvider.currentUser!.id,), ));
                                   },
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

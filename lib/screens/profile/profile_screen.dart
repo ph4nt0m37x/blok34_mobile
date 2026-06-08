@@ -1,10 +1,688 @@
+// screens/profile/profile_screen.dart
+import 'package:blok34_mobile/screens/profile/settings_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:blok34_mobile/services/auth_service.dart';
+import 'package:blok34_mobile/models/app_user.dart';
+import 'package:blok34_mobile/models/event.dart';
+import 'package:blok34_mobile/enums/event_category.dart';
 
-class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key});
+class ProfileScreen extends StatefulWidget {
+  final String userId;
+
+  const ProfileScreen({
+    super.key,
+    required this.userId,
+  });
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  final AuthService _authService = AuthService();
+
+  AppUser? _user;
+  List<Event> _createdEvents = [];
+  List<Event> _attendingEvents = [];
+  List<Event> _interestedEvents = [];
+  bool _isLoading = true;
+  bool _isCurrentUser = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _checkIfCurrentUser();
+    _loadUserData();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  void _checkIfCurrentUser() {
+    final currentUser = _authService.getCurrentFirebaseUser();
+    if (currentUser != null && currentUser.uid == widget.userId) {
+      _isCurrentUser = true;
+    }
+  }
+
+  Future<void> _loadUserData() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Load user data
+      _user = await _authService.loadUserData();
+
+      // In a real app, you would fetch these from your API/Service
+      // For now, using mock data
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      _createdEvents = _getMockCreatedEvents();
+      _attendingEvents = _getMockAttendingEvents();
+      _interestedEvents = _getMockInterestedEvents();
+
+    } catch (e) {
+      _showSnackBar('Error loading profile: $e', isError: true);
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  // Mock data methods - Replace with actual API calls
+  List<Event> _getMockCreatedEvents() {
+    return [
+      Event(
+        id: '1',
+        title: 'Flutter Meetup',
+        description: 'Meet local Flutter developers and share knowledge.',
+        startDate: DateTime.now().add(const Duration(days: 5)),
+        venueId: 'venue1',
+        category: EventCategory.meetup,
+        createdByUserId: widget.userId,
+        bannerPath: null,
+      ),
+      Event(
+        id: '2',
+        title: 'Tech Conference 2024',
+        description: 'Annual tech conference with amazing speakers.',
+        startDate: DateTime.now().add(const Duration(days: 12)),
+        venueId: 'venue2',
+        category: EventCategory.conference,
+        createdByUserId: widget.userId,
+        bannerPath: null,
+      ),
+    ];
+  }
+
+  List<Event> _getMockAttendingEvents() {
+    return [
+      Event(
+        id: '3',
+        title: 'Rock Concert',
+        description: 'Live rock music all night long.',
+        startDate: DateTime.now().add(const Duration(days: 2)),
+        venueId: 'venue3',
+        category: EventCategory.liveMusic,
+        createdByUserId: 'user2',
+        bannerPath: null,
+      ),
+      Event(
+        id: '4',
+        title: 'Board Games Night',
+        description: 'Bring your favorite board games.',
+        startDate: DateTime.now().add(const Duration(days: 7)),
+        venueId: 'venue4',
+        category: EventCategory.culturalEvent,
+        createdByUserId: 'user3',
+        bannerPath: null,
+      ),
+    ];
+  }
+
+  List<Event> _getMockInterestedEvents() {
+    return [
+      Event(
+        id: '5',
+        title: 'Startup Networking',
+        description: 'Meet founders and investors in the area.',
+        startDate: DateTime.now().add(const Duration(days: 9)),
+        venueId: 'venue5',
+        category: EventCategory.beerTasting,
+        createdByUserId: 'user4',
+        bannerPath: null,
+      ),
+    ];
+  }
+
+  void _showSnackBar(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red.shade900 : Colors.green.shade900,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  void _navigateToEventDetails(Event event) {
+    // Navigate to event details screen
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Viewing ${event.title} - Coming Soon')),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Center(child: Text('Profile Page'));
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF0F0F1A),
+              Color(0xFF1A1A3E),
+              Color(0xFF2D1B69),
+              Color(0xFF4A0E4E),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: _isLoading
+              ? const Center(
+            child: CircularProgressIndicator(
+              color: Colors.cyanAccent,
+            ),
+          )
+              : CustomScrollView(
+            slivers: [
+              // Profile Header
+              SliverToBoxAdapter(
+                child: _buildProfileHeader(),
+              ),
+
+              // Stats Badges
+              SliverToBoxAdapter(
+                child: _buildStatsBadges(),
+              ),
+
+              // Main Content with Tabs
+              SliverToBoxAdapter(
+                child: _buildTabsSection(),
+              ),
+
+              const SliverToBoxAdapter(
+                child: SizedBox(height: 32),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileHeader() {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withValues(alpha: 0.07),
+            Colors.white.withValues(alpha: 0.03),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.15),
+          width: 1,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Row(
+          children: [
+            // Avatar
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF6a0dad), Color(0xFF8a2be2)],
+                ),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.3),
+                  width: 3,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF6a0dad).withValues(alpha: 0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: ClipOval(
+                child: _user?.photoUrl != null
+                    ? Image.network(
+                  _user!.photoUrl!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Icon(
+                      Icons.person,
+                      size: 50,
+                      color: Colors.white.withValues(alpha: 0.8),
+                    );
+                  },
+                )
+                    : Icon(
+                  Icons.person,
+                  size: 50,
+                  color: Colors.white.withValues(alpha: 0.8),
+                ),
+              ),
+            ),
+            const SizedBox(width: 20),
+
+            // User Info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _user?.name ?? 'User Name',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '@${_user?.username ?? 'username'}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white.withValues(alpha: 0.6),
+                    ),
+                  ),
+                  if (_user?.bio != null && _user!.bio!.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      _user!.bio!,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.white.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            // Edit Button for current user
+            if (_isCurrentUser)
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const SettingsScreen(),
+                    ),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.cyan.shade400.withValues(alpha: 0.2),
+                        Colors.purple.shade400.withValues(alpha: 0.15),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.cyan.shade400.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.edit,
+                    color: Colors.cyan.shade300,
+                    size: 20,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatsBadges() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          _buildBadge(
+            icon: Icons.event,
+            label: 'Events Created',
+            count: _createdEvents.length,
+            color: const Color(0xFF6a0dad),
+          ),
+          const SizedBox(width: 12),
+          _buildBadge(
+            icon: Icons.check_circle,
+            label: 'Attending',
+            count: _attendingEvents.length,
+            color: Colors.green,
+          ),
+          const SizedBox(width: 12),
+          _buildBadge(
+            icon: Icons.star,
+            label: 'Interested',
+            count: _interestedEvents.length,
+            color: Colors.cyan,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBadge({
+    required IconData icon,
+    required String label,
+    required int count,
+    required Color color,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              color.withValues(alpha: 0.2),
+              color.withValues(alpha: 0.1),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+            color: color.withValues(alpha: 0.3),
+            width: 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(height: 4),
+            Text(
+              count.toString(),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                color: Colors.white.withValues(alpha: 0.7),
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTabsSection() {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withValues(alpha: 0.07),
+            Colors.white.withValues(alpha: 0.03),
+          ],
+          //borderRadius: BorderRadius.circular(20),
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.15),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        children: [
+          // Tab Bar
+          Container(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                _buildTabButton(0, 'Attending', _attendingEvents.length),
+                const SizedBox(width: 12),
+                _buildTabButton(1, 'Interested', _interestedEvents.length),
+              ],
+            ),
+          ),
+
+          // Tab Content
+          SizedBox(
+            height: 500,
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildEventsList(_attendingEvents, 'attending'),
+                _buildEventsList(_interestedEvents, 'interested'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabButton(int index, String label, int count) {
+    final isSelected = _tabController.index == index;
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          _tabController.animateTo(index);
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            gradient: isSelected
+                ? LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                const Color(0xFF6a0dad).withValues(alpha: 0.6),
+                const Color(0xFF8a2be2).withValues(alpha: 0.6),
+              ],
+            )
+                : null,
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(
+              color: isSelected
+                  ? Colors.white.withValues(alpha: 0.3)
+                  : Colors.white.withValues(alpha: 0.15),
+              width: 1,
+            ),
+          ),
+          child: Center(
+            child: Text(
+              '$label ($count)',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                color: isSelected
+                    ? Colors.white
+                    : Colors.white.withValues(alpha: 0.7),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEventsList(List<Event> events, String type) {
+    if (events.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              type == 'attending' ? Icons.event_busy : Icons.star_border,
+              size: 64,
+              color: Colors.white.withValues(alpha: 0.3),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              type == 'attending'
+                  ? 'Not attending any events'
+                  : 'No interested events',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.white.withValues(alpha: 0.5),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              type == 'attending'
+                  ? '${_user?.name ?? 'This user'} hasn\'t confirmed attendance for any events yet'
+                  : '${_user?.name ?? 'This user'} hasn\'t shown interest in any events yet',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.white.withValues(alpha: 0.3),
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(12),
+      itemCount: events.length,
+      itemBuilder: (context, index) {
+        final event = events[index];
+        return _buildEventCard(event);
+      },
+    );
+  }
+
+  Widget _buildEventCard(Event event) {
+    return GestureDetector(
+      onTap: () => _navigateToEventDetails(event),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.white.withValues(alpha: 0.05),
+              Colors.white.withValues(alpha: 0.02),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.1),
+            width: 1,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              // Event Image Placeholder
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFF4B0082), Color(0xFF6a0dad)],
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    width: 1,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.event,
+                  color: Colors.white,
+                  size: 30,
+                ),
+              ),
+              const SizedBox(width: 12),
+
+              // Event Details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      event.title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _formatDate(event.startDate),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.white.withValues(alpha: 0.6),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      event.description,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.white.withValues(alpha: 0.5),
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+
+              // Arrow Icon
+              Icon(
+                Icons.chevron_right,
+                color: Colors.white.withValues(alpha: 0.5),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    final months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${months[date.month - 1]} ${date.day}, ${date.year} • ${_formatTime(date)}';
+  }
+
+  String _formatTime(DateTime date) {
+    final hour = date.hour % 12;
+    final minute = date.minute.toString().padLeft(2, '0');
+    final ampm = date.hour >= 12 ? 'PM' : 'AM';
+    return '$hour:$minute $ampm';
   }
 }
+
+// Import this at the top if not already imported

@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../enums/event_category.dart';
 
 class Event {
@@ -20,32 +22,41 @@ class Event {
     required this.venueId,
     required this.category,
     required this.createdByUserId,
-    this.bannerPath
+    this.bannerPath,
   });
 
-  Event.fromJson(Map<String, dynamic> data, String id)
-      : id = id,
-        title = data['title'],
-        description = data['description'],
-        startDate = data['startDate'].toDate(),
-        endDate = data['endDate']?.toDate(),
-        venueId = data['venueId'],
-        category = EventCategory.values.firstWhere(
-              (e) => e.name == data['category'],
-        ),
-        createdByUserId = data['createdByUserId'],
-        bannerPath = data['bannerPath'];
+  factory Event.fromJson(
+      Map<String, dynamic> data,
+      String id,
+      ) {
+    return Event(
+      id: id,
+      title: data['title'] ?? '',
+      description: data['description'] ?? '',
+      startDate: (data['startDate'] as Timestamp).toDate(),
+      endDate: data['endDate'] != null
+          ? (data['endDate'] as Timestamp).toDate()
+          : null,
+      venueId: data['venueId'] ?? '',
+      category: EventCategory.values.firstWhere(
+            (e) => e.name == data['category'],
+      ),
+      createdByUserId: data['createdByUserId'] ?? '',
+      bannerPath: data['bannerPath'],
+    );
+  }
 
   Map<String, dynamic> toJson() {
     return {
       'title': title,
       'description': description,
-      'startDate': startDate,
-      'endDate': endDate,
+      'startDate': Timestamp.fromDate(startDate),
+      'endDate':
+      endDate != null ? Timestamp.fromDate(endDate!) : null,
       'venueId': venueId,
       'category': category.name,
       'createdByUserId': createdByUserId,
-      'bannerPath' : bannerPath
+      'bannerPath': bannerPath,
     };
   }
 }

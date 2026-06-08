@@ -1,4 +1,4 @@
-// widgets/user_card.dart
+// widgets/user_card.dart - Update the card
 import 'package:flutter/material.dart';
 import 'package:blok34_mobile/models/app_user.dart';
 
@@ -23,9 +23,7 @@ class UserCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {
-        // Navigator.of(context).push(MaterialPageRoute(builder: (BuildContext context) => ProfileScreen(user: user));
-      },
+      onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -44,14 +42,14 @@ class UserCard extends StatelessWidget {
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(16), // Reduced from 20
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               // Circular Avatar
               Container(
-                width: 80,
-                height: 80,
+                width: 70, // Reduced from 80
+                height: 70, // Reduced from 80
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: LinearGradient(
@@ -75,25 +73,24 @@ class UserCard extends StatelessWidget {
                     errorBuilder: (context, error, stackTrace) {
                       return Icon(
                         Icons.person,
-                        size: 40,
+                        size: 35,
                         color: Colors.white.withValues(alpha: 0.8),
                       );
                     },
                   )
                       : Icon(
                     Icons.person,
-                    size: 40,
+                    size: 35,
                     color: Colors.white.withValues(alpha: 0.8),
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
-
+              const SizedBox(height: 12), // Reduced from 16
               // User Name
               Text(
                 user.name,
                 style: const TextStyle(
-                  fontSize: 18,
+                  fontSize: 16, // Reduced from 18
                   fontWeight: FontWeight.w600,
                   color: Colors.white,
                 ),
@@ -102,27 +99,24 @@ class UserCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 4),
-
-              // User Email/Bio (optional - show username or email)
                 Text(
                   user.username,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 11, // Reduced from 12
                     color: Colors.white.withValues(alpha: 0.5),
                   ),
                   textAlign: TextAlign.center,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-              const SizedBox(height: 16),
-
+              const SizedBox(height: 12), // Reduced from 16
               // Action Button
               if (showActionButton)
                 GestureDetector(
                   onTap: onActionPressed,
                   child: Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12), // Adjusted padding
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.centerLeft,
@@ -143,14 +137,14 @@ class UserCard extends StatelessWidget {
                       children: [
                         Icon(
                           actionButtonIcon,
-                          size: 16,
+                          size: 14, // Reduced from 16
                           color: Colors.white.withValues(alpha: 0.8),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         Text(
                           actionButtonText,
                           style: TextStyle(
-                            fontSize: 13,
+                            fontSize: 11, // Reduced from 13
                             fontWeight: FontWeight.w500,
                             color: Colors.white.withValues(alpha: 0.9),
                           ),

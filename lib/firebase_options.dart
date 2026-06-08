@@ -56,7 +56,6 @@ class DefaultFirebaseOptions {
     projectId: 'blok34-app',
     storageBucket: 'blok34-app.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyBzzIe6C6FCSe6t-UTZ8FlD4tRdQk4z9aY',
     appId: '1:264183891151:ios:5b204d8bbc9c4bce43a3ba',

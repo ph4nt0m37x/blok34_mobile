@@ -1,12 +1,12 @@
 import 'package:blok34_mobile/providers/weather_provider.dart';
 import 'package:blok34_mobile/screens/auth/login_screen.dart';
-import 'package:blok34_mobile/screens/home_screen.dart';
+import 'package:blok34_mobile/screens/auth/register_screen.dart';
 import 'package:blok34_mobile/screens/main_screen.dart';
-import 'package:blok34_mobile/services/auth_service.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
+import 'package:blok34_mobile/providers/auth_state_provider.dart';
 import 'firebase_options.dart';
 
 Future<void> main() async {
@@ -21,6 +21,9 @@ Future<void> main() async {
             ChangeNotifierProvider(
               create: (_) => WeatherProvider(),
             ),
+            ChangeNotifierProvider(
+              create: (context) => AuthStateProvider(),
+            )
           ],
           child: const MyApp()));
 
@@ -31,28 +34,23 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final authService = AuthService();
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Blok34',
+      title: 'blok34',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
 
-      /*
-      final user = FirebaseAuth.instance.currentUser;
+      routes: {
+        '/login': (_) => const LoginScreen(),
+        '/register': (_) => const RegisterScreen(),
+        '/main': (_) => const MainScreen(),
+      },
 
-        home: user == null
-        ? LoginScreen()
-        : MainScreen(),
-      */
-      // start here
-      //  home: LoginScreen(authService: authService),
-          home: MainScreen(),
+      home: FirebaseAuth.instance.currentUser == null
+          ? const LoginScreen()
+          : const MainScreen(),
     );
   }
 }
-
-// temporary placeholder
-

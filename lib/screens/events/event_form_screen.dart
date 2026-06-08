@@ -4,16 +4,22 @@ import 'package:blok34_mobile/models/venue.dart';
 import 'package:blok34_mobile/enums/event_category.dart';
 import 'package:blok34_mobile/widgets/glass_text_field.dart';
 import 'package:blok34_mobile/widgets/glass_dropdown.dart';
+import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'package:firebase_storage/firebase_storage.dart';
+
+import '../../providers/auth_state_provider.dart';
+import '../../services/venue_service.dart';
+import '../../services/event_service.dart';
 
 class EventFormScreen extends StatefulWidget {
   final Event? event;
-  final List<Venue> venues;
   final String currentUserId;
 
   const EventFormScreen({
     super.key,
     this.event,
-    required this.venues,
     required this.currentUserId,
   });
 
@@ -26,6 +32,13 @@ class _EventFormScreenState extends State<EventFormScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
 
+  final VenueService _venueService = VenueService();
+  final EventService _eventService = EventService();
+  final FirebaseStorage _storage = FirebaseStorage.instance;
+
+  late Future<List<Venue>> _venuesFuture;
+  List<Venue> _venues = [];
+
   EventCategory? _selectedCategory;
   Venue? _selectedVenue;
 
@@ -36,12 +49,37 @@ class _EventFormScreenState extends State<EventFormScreen> {
 
   bool _hasEndDate = false;
   String? _bannerPath;
+  String? _bannerUrl;
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
+
+    _venuesFuture = _venueService.getAvailableVenues(widget.currentUserId);
+
+    _venuesFuture.then((venues) {
+      _venues = venues;
+
+      if (widget.event != null) {
+        try {
+          _selectedVenue = venues.firstWhere((v) => v.id == widget.event!.venueId);
+        } catch (e) {
+          _selectedVenue = venues.isNotEmpty ? venues.first : null;
+        }
+      }
+
+      setState(() {});
+    });
+
     _loadEventData();
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
   }
 
   void _loadEventData() {
@@ -56,34 +94,18 @@ class _EventFormScreenState extends State<EventFormScreen> {
         _endDate = widget.event!.endDate;
         _endTime = widget.event!.endDate;
       }
-      _bannerPath = widget.event!.bannerPath;
-
-      _selectedVenue = widget.venues.firstWhere(
-            (v) => v.id == widget.event!.venueId,
-        orElse: () => widget.venues.first,
-      );
+      _bannerUrl = widget.event!.bannerPath;
     }
-  }
-
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _descriptionController.dispose();
-    super.dispose();
   }
 
   String _formatCategoryName(String category) {
     switch (category) {
-      case 'concert': return 'Concert';
-      case 'festival': return 'Festival';
-      case 'party': return 'Party';
-      case 'clubNight': return 'Club Night';
+      case 'meetup': return 'Meetup';
+      case 'liveMusic': return 'Live Music';
+      case 'culturalEvent': return 'Cultural Event';
+      case 'beerTasting': return 'Beer Tasting';
       case 'workshop': return 'Workshop';
       case 'conference': return 'Conference';
-      case 'sports': return 'Sports';
-      case 'theater': return 'Theater';
-      case 'exhibition': return 'Exhibition';
-      case 'other': return 'Other';
       default: return category;
     }
   }
@@ -130,6 +152,52 @@ class _EventFormScreenState extends State<EventFormScreen> {
     );
   }
 
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green.shade400,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  Future<void> _pickBannerImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1920,
+      maxHeight: 1080,
+      imageQuality: 80,
+    );
+
+    if (pickedFile != null) {
+      setState(() {
+        _bannerPath = pickedFile.path;
+      });
+    }
+  }
+
+  Future<String?> _uploadBannerImage(String eventId) async {
+    if (_bannerPath == null) return _bannerUrl;
+
+    try {
+      final file = File(_bannerPath!);
+      final storageRef = _storage.ref()
+          .child('event_banners')
+          .child('$eventId.jpg');
+
+      await storageRef.putFile(file);
+      final downloadUrl = await storageRef.getDownloadURL();
+      return downloadUrl;
+    } catch (e) {
+      print('Error uploading banner: $e');
+      return null;
+    }
+  }
+
   Future<void> _selectDate(bool isStartDate) async {
     final DateTime now = DateTime.now();
     final DateTime initialDate = isStartDate
@@ -167,7 +235,6 @@ class _EventFormScreenState extends State<EventFormScreen> {
             _startTime = DateTime(picked.year, picked.month, picked.day, _startTime!.hour, _startTime!.minute);
           }
         } else {
-          // Validate end date against start date
           final startDateTime = _getCombinedStartDateTime();
           final tempTime = _endTime ?? DateTime(picked.year, picked.month, picked.day, 23, 0);
           final tempEndDateTime = DateTime(
@@ -243,7 +310,6 @@ class _EventFormScreenState extends State<EventFormScreen> {
             _startTime = DateTime(now.year, now.month, now.day, picked.hour, picked.minute);
           }
         } else {
-          // Validate end time against start time
           final baseDate = _endDate ?? _startDate ?? DateTime.now();
           final tempTime = DateTime(
             baseDate.year,
@@ -282,6 +348,166 @@ class _EventFormScreenState extends State<EventFormScreen> {
         }
       });
     }
+  }
+
+  String? _validateForm() {
+    final startDateTime = _getCombinedStartDateTime();
+    final endDateTime = _getCombinedEndDateTime();
+
+    if (startDateTime == null) {
+      return "Please select start date and time";
+    }
+
+    if (startDateTime.isBefore(DateTime.now())) {
+      return "Start date cannot be in the past";
+    }
+
+    if (_hasEndDate && endDateTime != null) {
+      if (endDateTime.isBefore(startDateTime)) {
+        return "End date must be after start date";
+      }
+      if (endDateTime.isBefore(DateTime.now())) {
+        return "End date cannot be in the past";
+      }
+    }
+
+    return null;
+  }
+
+  Future<void> _submitForm() async {
+    if (_formKey.currentState!.validate()) {
+      final validationError = _validateForm();
+      if (validationError != null) {
+        _showErrorSnackBar(validationError);
+        return;
+      }
+
+      setState(() => _isLoading = true);
+
+      final isEditing = widget.event != null;
+
+      try {
+        if (isEditing) {
+          // Update existing event
+          String? finalBannerUrl = _bannerUrl;
+
+          if (_bannerPath != null) {
+            finalBannerUrl = await _uploadBannerImage(widget.event!.id);
+          }
+
+          final updatedEvent = Event(
+            id: widget.event!.id,
+            title: _titleController.text,
+            description: _descriptionController.text,
+            startDate: _getCombinedStartDateTime()!,
+            endDate: _getCombinedEndDateTime(),
+            venueId: _selectedVenue!.id,
+            category: _selectedCategory!,
+            createdByUserId: widget.event!.createdByUserId,
+            bannerPath: finalBannerUrl,
+          );
+
+          await _eventService.updateEvent(updatedEvent);
+
+          if (mounted) {
+            _showSuccessSnackBar('Event updated successfully!');
+            setState(() => _isLoading = false);
+            Navigator.pop(context, updatedEvent);
+          }
+        } else {
+          // Create new event - first create a temporary ID for the banner
+          final tempId = DateTime.now().millisecondsSinceEpoch.toString();
+          String? finalBannerUrl;
+
+          if (_bannerPath != null) {
+            finalBannerUrl = await _uploadBannerImage(tempId);
+          }
+
+          final newEvent = Event(
+            id: '', // Will be set by Firestore
+            title: _titleController.text,
+            description: _descriptionController.text,
+            startDate: _getCombinedStartDateTime()!,
+            endDate: _getCombinedEndDateTime(),
+            venueId: _selectedVenue!.id,
+            category: _selectedCategory!,
+            createdByUserId: widget.currentUserId,
+            bannerPath: finalBannerUrl,
+          );
+
+          await _eventService.insertEvent(newEvent);
+
+          if (mounted) {
+            _showSuccessSnackBar('Event created successfully!');
+            setState(() => _isLoading = false);
+            Navigator.pop(context, true);
+          }
+        }
+      } catch (e) {
+        setState(() => _isLoading = false);
+        _showErrorSnackBar('Error: $e');
+      }
+    }
+  }
+
+  void _confirmDelete() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A3E),
+        title: const Text(
+          'Delete Event',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: Text(
+          'Are you sure you want to delete "${widget.event?.title}"? This action cannot be undone.',
+          style: TextStyle(color: Colors.white.withValues(alpha: 0.8)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: Colors.cyan.shade200),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              setState(() => _isLoading = true);
+
+              try {
+                await _eventService.deleteEvent(widget.event!.id);
+
+                // Also delete banner from storage if exists
+                if (widget.event!.bannerPath != null) {
+                  try {
+                    final storageRef = _storage.ref().child('event_banners').child('${widget.event!.id}.jpg');
+                    await storageRef.delete();
+                  } catch (e) {
+                    print('Error deleting banner: $e');
+                  }
+                }
+
+                if (mounted) {
+                  _showSuccessSnackBar('Event deleted successfully!');
+                  setState(() => _isLoading = false);
+                  Navigator.pop(context, null);
+                }
+              } catch (e) {
+                setState(() => _isLoading = false);
+                _showErrorSnackBar('Error deleting event: $e');
+              }
+            },
+            child: Text(
+              'Delete',
+              style: TextStyle(color: Colors.red.shade200),
+            ),
+          ),
+        ],
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+    );
   }
 
   @override
@@ -363,8 +589,13 @@ class _EventFormScreenState extends State<EventFormScreen> {
                   fit: StackFit.expand,
                   children: [
                     if (_bannerPath != null)
+                      Image.file(
+                        File(_bannerPath!),
+                        fit: BoxFit.cover,
+                      )
+                    else if (_bannerUrl != null)
                       Image.network(
-                        _bannerPath!,
+                        _bannerUrl!,
                         fit: BoxFit.cover,
                       ),
                     DecoratedBox(
@@ -374,7 +605,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
                           end: Alignment.bottomCenter,
                           colors: [
                             Colors.black.withValues(alpha: 0.4),
-                            Color(0xFF0F0F1A).withValues(alpha: 0.9),
+                            const Color(0xFF0F0F1A).withValues(alpha: 0.9),
                           ],
                           stops: const [0.3, 1.0],
                         ),
@@ -398,13 +629,13 @@ class _EventFormScreenState extends State<EventFormScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
-                                _bannerPath != null ? Icons.edit : Icons.cloud_upload,
+                                (_bannerPath != null || _bannerUrl != null) ? Icons.edit : Icons.cloud_upload,
                                 size: 14,
                                 color: Colors.cyan.shade200,
                               ),
                               const SizedBox(width: 6),
                               Text(
-                                _bannerPath != null ? "Change banner" : "Tap to add banner",
+                                (_bannerPath != null || _bannerUrl != null) ? "Change banner" : "Tap to add banner",
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.cyan.shade200,
@@ -443,23 +674,102 @@ class _EventFormScreenState extends State<EventFormScreen> {
                       const SizedBox(height: 20),
 
                       // Venue Dropdown
-                      GlassDropdown<Venue>(
-                        label: "Venue",
-                        icon: Icons.location_city,
-                        value: _selectedVenue,
-                        items: widget.venues,
-                        onChanged: (venue) {
-                          setState(() {
-                            _selectedVenue = venue;
-                          });
-                        },
-                        validator: (value) {
-                          if (value == null) {
-                            return "Please select a venue";
+                      FutureBuilder<List<Venue>>(
+                        future: _venuesFuture,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.white.withValues(alpha: 0.08),
+                                    Colors.white.withValues(alpha: 0.03),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Center(
+                                child: CircularProgressIndicator(
+                                  color: Colors.cyanAccent,
+                                ),
+                              ),
+                            );
                           }
-                          return null;
+
+                          if (snapshot.hasError) {
+                            return Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.red.withValues(alpha: 0.2),
+                                    Colors.red.withValues(alpha: 0.1),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Column(
+                                children: [
+                                  Icon(Icons.error_outline, color: Colors.red.shade300),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Error loading venues: ${snapshot.error}',
+                                    style: TextStyle(color: Colors.red.shade300),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+
+                          final venues = snapshot.data ?? [];
+
+                          if (venues.isEmpty) {
+                            return Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.orange.withValues(alpha: 0.2),
+                                    Colors.orange.withValues(alpha: 0.1),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Column(
+                                children: [
+                                  Icon(Icons.warning_amber_rounded, color: Colors.orange.shade300),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'No venues available. Please register a venue first.',
+                                    style: TextStyle(color: Colors.orange.shade300),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+
+                          return GlassDropdown<Venue>(
+                            label: "Venue",
+                            icon: Icons.location_city,
+                            value: _selectedVenue,
+                            items: venues,
+                            onChanged: (venue) {
+                              setState(() {
+                                _selectedVenue = venue;
+                              });
+                            },
+                            validator: (value) {
+                              if (value == null) {
+                                return "Please select a venue";
+                              }
+                              return null;
+                            },
+                            itemLabelBuilder: (venue) => venue.name,
+                          );
                         },
-                        itemLabelBuilder: (venue) => venue.name,
                       ),
                       const SizedBox(height: 20),
 
@@ -707,77 +1017,72 @@ class _EventFormScreenState extends State<EventFormScreen> {
                               width: 0.5,
                             ),
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          child: Row(
                             children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: GestureDetector(
-                                      onTap: () => _selectDate(false),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white.withValues(alpha: 0.05),
-                                          borderRadius: BorderRadius.circular(12),
-                                          border: Border.all(
-                                            color: Colors.white.withValues(alpha: 0.1),
-                                          ),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            Icon(Icons.date_range, size: 20, color: Colors.purple.shade200),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: Text(
-                                                _endDate != null ? _formatDate(_endDate!) : "Select Date",
-                                                style: TextStyle(
-                                                  color: _endDate != null
-                                                      ? Colors.white
-                                                      : Colors.white.withValues(alpha: 0.5),
-                                                ),
-                                              ),
-                                            ),
-                                            Icon(Icons.arrow_drop_down, color: Colors.purple.shade200),
-                                          ],
-                                        ),
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () => _selectDate(false),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.05),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: Colors.white.withValues(alpha: 0.1),
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: GestureDetector(
-                                      onTap: () => _selectTime(false),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white.withValues(alpha: 0.05),
-                                          borderRadius: BorderRadius.circular(12),
-                                          border: Border.all(
-                                            color: Colors.white.withValues(alpha: 0.1),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.date_range, size: 20, color: Colors.purple.shade200),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Text(
+                                            _endDate != null ? _formatDate(_endDate!) : "Select Date",
+                                            style: TextStyle(
+                                              color: _endDate != null
+                                                  ? Colors.white
+                                                  : Colors.white.withValues(alpha: 0.5),
+                                            ),
                                           ),
                                         ),
-                                        child: Row(
-                                          children: [
-                                            Icon(Icons.access_time, size: 20, color: Colors.purple.shade200),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: Text(
-                                                _endTime != null ? _formatTime(_endTime!) : "Select Time",
-                                                style: TextStyle(
-                                                  color: _endTime != null
-                                                      ? Colors.white
-                                                      : Colors.white.withValues(alpha: 0.5),
-                                                ),
-                                              ),
-                                            ),
-                                            Icon(Icons.arrow_drop_down, color: Colors.purple.shade200),
-                                          ],
-                                        ),
-                                      ),
+                                        Icon(Icons.arrow_drop_down, color: Colors.purple.shade200),
+                                      ],
                                     ),
                                   ),
-                                ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () => _selectTime(false),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.05),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: Colors.white.withValues(alpha: 0.1),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.access_time, size: 20, color: Colors.purple.shade200),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Text(
+                                            _endTime != null ? _formatTime(_endTime!) : "Select Time",
+                                            style: TextStyle(
+                                              color: _endTime != null
+                                                  ? Colors.white
+                                                  : Colors.white.withValues(alpha: 0.5),
+                                            ),
+                                          ),
+                                        ),
+                                        Icon(Icons.arrow_drop_down, color: Colors.purple.shade200),
+                                      ],
+                                    ),
+                                  ),
+                                ),
                               ),
                             ],
                           ),
@@ -803,9 +1108,9 @@ class _EventFormScreenState extends State<EventFormScreen> {
 
                       // Submit Button
                       _isLoading
-                          ? Center(
+                          ? const Center(
                         child: CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation(Colors.cyan.shade200),
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.cyanAccent),
                         ),
                       )
                           : Container(
@@ -918,166 +1223,6 @@ class _EventFormScreenState extends State<EventFormScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Future<void> _pickBannerImage() async {
-    // TODO: Implement image picker
-    print("Pick banner image");
-  }
-
-  String? _validateForm() {
-    final startDateTime = _getCombinedStartDateTime();
-    final endDateTime = _getCombinedEndDateTime();
-
-    if (startDateTime == null) {
-      return "Please select start date and time";
-    }
-
-    if (startDateTime.isBefore(DateTime.now())) {
-      return "Start date cannot be in the past";
-    }
-
-    if (_hasEndDate && endDateTime != null) {
-      if (endDateTime.isBefore(startDateTime)) {
-        return "End date must be after start date";
-      }
-      if (endDateTime.isBefore(DateTime.now())) {
-        return "End date cannot be in the past";
-      }
-    }
-
-    return null;
-  }
-
-  Future<void> _submitForm() async {
-    if (_formKey.currentState!.validate()) {
-      final validationError = _validateForm();
-      if (validationError != null) {
-        _showErrorSnackBar(validationError);
-        return;
-      }
-
-      setState(() => _isLoading = true);
-
-      final isEditing = widget.event != null;
-
-      if (isEditing) {
-        final updatedEvent = Event(
-          id: widget.event!.id,
-          title: _titleController.text,
-          description: _descriptionController.text,
-          startDate: _getCombinedStartDateTime()!,
-          endDate: _getCombinedEndDateTime(),
-          venueId: _selectedVenue!.id,
-          category: _selectedCategory!,
-          createdByUserId: widget.event!.createdByUserId,
-          bannerPath: _bannerPath,
-        );
-
-        // TODO: Update in Firebase
-        print('Updating event: ${updatedEvent.title}');
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Event updated successfully!'),
-              backgroundColor: Colors.green.shade400,
-              behavior: SnackBarBehavior.floating,
-              margin: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          );
-
-          setState(() => _isLoading = false);
-          Navigator.pop(context, updatedEvent);
-        }
-      } else {
-        final newEvent = Event(
-          id: '',
-          title: _titleController.text,
-          description: _descriptionController.text,
-          startDate: _getCombinedStartDateTime()!,
-          endDate: _getCombinedEndDateTime(),
-          venueId: _selectedVenue!.id,
-          category: _selectedCategory!,
-          createdByUserId: widget.currentUserId,
-          bannerPath: _bannerPath,
-        );
-
-        // TODO: Save to Firebase
-        print('Creating event: ${newEvent.title}');
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Event created successfully!'),
-              backgroundColor: Colors.green.shade400,
-              behavior: SnackBarBehavior.floating,
-              margin: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          );
-
-          setState(() => _isLoading = false);
-          Navigator.pop(context, newEvent);
-        }
-      }
-    }
-  }
-
-  void _confirmDelete() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A3E),
-        title: const Text(
-          'Delete Event',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: Text(
-          'Are you sure you want to delete "${widget.event?.title}"? This action cannot be undone.',
-          style: TextStyle(color: Colors.white.withValues(alpha: 0.8)),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: Colors.cyan.shade200),
-            ),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              setState(() => _isLoading = true);
-
-              // TODO: Delete from Firebase
-              print('Deleting event: ${widget.event?.title}');
-
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('Event deleted successfully!'),
-                    backgroundColor: Colors.red.shade400,
-                    behavior: SnackBarBehavior.floating,
-                    margin: const EdgeInsets.all(16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                );
-
-                setState(() => _isLoading = false);
-                Navigator.pop(context, null);
-              }
-            },
-            child: Text(
-              'Delete',
-              style: TextStyle(color: Colors.red.shade200),
-            ),
-          ),
-        ],
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
     );
   }
