@@ -9,7 +9,7 @@
 .idea/
 .metadata
 *.iml
-
+.env
 
 
 # Flutter repo-specific

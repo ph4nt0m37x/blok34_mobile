@@ -7,7 +7,7 @@ import 'package:blok34_mobile/utils/text_formatter.dart';
 import 'package:blok34_mobile/services/venue_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:blok34_mobile/services/cloudinary_service.dart';
 import 'dart:io';
 
 class VenueFormScreen extends StatefulWidget {
@@ -25,6 +25,7 @@ class _VenueFormScreenState extends State<VenueFormScreen> {
   final _descriptionController = TextEditingController();
   final _addressController = TextEditingController();
   final _phoneController = TextEditingController();
+  final CloudinaryService _cloudinaryService = CloudinaryService();
 
   VenueCategory? _selectedCategory;
   bool _isPublic = true;
@@ -63,33 +64,22 @@ class _VenueFormScreenState extends State<VenueFormScreen> {
 
   Future<String?> _uploadBannerImage(File imageFile) async {
     try {
-      final userId = FirebaseAuth.instance.currentUser?.uid;
-      if (userId == null) return null;
-
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('venue_banners')
-          .child(userId)
-          .child('banner_$timestamp.jpg');
-
-      final uploadTask = storageRef.putFile(imageFile);
-      final snapshot = await uploadTask.whenComplete(() {});
-      final downloadUrl = await snapshot.ref.getDownloadURL();
-      return downloadUrl;
+      return await _cloudinaryService.uploadImage(
+        imageFile,
+        folder: 'venue_banners',
+      );
     } catch (e) {
-      print('Error uploading banner: $e');
+      debugPrint('Error uploading venue banner: $e');
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to upload banner: ${e.toString()}'),
+            content: Text('Failed to upload banner'),
             backgroundColor: Colors.red.shade400,
-            behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.all(16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
       }
+
       return null;
     }
   }
@@ -107,16 +97,15 @@ class _VenueFormScreenState extends State<VenueFormScreen> {
         setState(() {
           _isLoading = true;
           _isUploadingImage = true;
-          // DON'T set _bannerPath here - it's a local file path, not a URL!
-          // _bannerPath = pickedFile.path; // REMOVE THIS LINE
         });
 
         final file = File(pickedFile.path);
         final uploadedUrl = await _uploadBannerImage(file);
+        print("!!! THE URL "+uploadedUrl.toString());
 
         if (uploadedUrl != null && mounted) {
           setState(() {
-            _bannerUrl = uploadedUrl;  // Only set the URL after upload
+            _bannerUrl = uploadedUrl; // Cloudinary URL
           });
 
           ScaffoldMessenger.of(context).showSnackBar(
@@ -130,6 +119,7 @@ class _VenueFormScreenState extends State<VenueFormScreen> {
         if (mounted) {
           setState(() {
             _isLoading = false;
+            _isUploadingImage = false;
           });
         }
       }

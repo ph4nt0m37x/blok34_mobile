@@ -7,6 +7,8 @@ import 'package:blok34_mobile/services/event_service.dart';
 import 'package:blok34_mobile/services/user_service.dart';
 import 'package:blok34_mobile/utils/text_formatter.dart';
 import 'package:blok34_mobile/utils/date_formatter.dart';
+import 'package:blok34_mobile/screens/events/event_form_screen.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 import '../../enums/attendance_status.dart';
 import '../../widgets/glass_info_card.dart';
@@ -143,6 +145,96 @@ class _EventDetailsState extends State<EventDetails> {
     }
   }
 
+  Future<void> _editEvent() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EventFormScreen(
+          event: widget.event,
+          currentUserId: widget.currentAppUserId,
+        ),
+      ),
+    );
+
+    if (result != null && mounted) {
+      Navigator.pop(context, true);
+    }
+  }
+
+  Future<void> _deleteEvent() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A3E),
+        title: const Text(
+          'Delete Event',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: Text(
+          'Are you sure you want to delete "${widget.event.title}"? This action cannot be undone.',
+          style: TextStyle(color: Colors.white.withValues(alpha: 0.8)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: Colors.cyan.shade200),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(
+              'Delete',
+              style: TextStyle(color: Colors.red.shade200),
+            ),
+          ),
+        ],
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() => _isLoading = true);
+
+      try {
+        await _eventService.deleteEvent(widget.event.id);
+
+        if (widget.event.bannerPath != null) {
+          try {
+            final storage = FirebaseStorage.instance;
+            final storageRef = storage.ref().child('event_banners').child('${widget.event.id}.jpg');
+            await storageRef.delete();
+          } catch (e) {
+            print('Error deleting banner: $e');
+          }
+        }
+
+        if (mounted) {
+          _showSuccessSnackBar('Event deleted successfully!');
+          Navigator.pop(context, true);
+        }
+      } catch (e) {
+        setState(() => _isLoading = false);
+        _showErrorSnackBar('Error deleting event: $e');
+      }
+    }
+  }
+
+  void _navigateToProfile(String userId) {
+    // Don't navigate if it's the current user's own profile
+    if (userId == widget.currentAppUserId) {
+      // Optional: You could show a message or just do nothing
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ProfileScreen(userId: userId),
+      ),
+    );
+  }
+
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -155,8 +247,22 @@ class _EventDetailsState extends State<EventDetails> {
     );
   }
 
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green.shade400,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isCreator = widget.event.createdByUserId == widget.currentAppUserId;
+
     if (_isLoading) {
       return Scaffold(
         body: Container(
@@ -291,14 +397,72 @@ class _EventDetailsState extends State<EventDetails> {
                   children: [
                     const SizedBox(height: 16),
 
-                    Text(
-                      widget.event.title,
-                      style: const TextStyle(
-                        fontSize: 34,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: -0.5,
-                      ),
+                    // Event Title with Edit/Delete buttons
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            widget.event.title,
+                            style: const TextStyle(
+                              fontSize: 34,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                        ),
+                        if (isCreator) ...[
+                          Container(
+                            margin: const EdgeInsets.only(left: 8),
+                            child: Row(
+                              children: [
+                                GestureDetector(
+                                  onTap: _editEvent,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          Colors.orange.shade400.withValues(alpha: 0.2),
+                                          Colors.orange.shade600.withValues(alpha: 0.1),
+                                        ],
+                                      ),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: Colors.orange.shade400.withValues(alpha: 0.3),
+                                        width: 0.5,
+                                      ),
+                                    ),
+                                    child: Icon(Icons.edit_outlined, color: Colors.orange.shade200, size: 22),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                GestureDetector(
+                                  onTap: _deleteEvent,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          Colors.red.shade400.withValues(alpha: 0.2),
+                                          Colors.red.shade600.withValues(alpha: 0.1),
+                                        ],
+                                      ),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: Colors.red.shade400.withValues(alpha: 0.3),
+                                        width: 0.5,
+                                      ),
+                                    ),
+                                    child: Icon(Icons.delete_outline, color: Colors.red.shade200, size: 22),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 12),
 
@@ -393,91 +557,115 @@ class _EventDetailsState extends State<EventDetails> {
                     ),
                     const SizedBox(height: 24),
 
+                    // Hosted by section - Made clickable
                     if (_creator != null)
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              Colors.white.withValues(alpha: 0.08),
-                              Colors.white.withValues(alpha: 0.03),
-                              Colors.cyan.withValues(alpha: 0.05),
+                      GestureDetector(
+                        onTap: () => _navigateToProfile(_creator!.id),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Colors.white.withValues(alpha: 0.08),
+                                Colors.white.withValues(alpha: 0.03),
+                                Colors.cyan.withValues(alpha: 0.05),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.1),
+                              width: 0.5,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 48,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [Colors.cyan, Colors.blue],
+                                  ),
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.2),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(24),
+                                  child: _creator!.photoUrl != null
+                                      ? Image.network(_creator!.photoUrl!, fit: BoxFit.cover)
+                                      : Icon(Icons.person, color: Colors.white.withValues(alpha: 0.8), size: 28),
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "Hosted by",
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.white.withValues(alpha: 0.5),
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      _creator!.name,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (isCreator)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: Colors.cyan.shade400.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: Colors.cyan.shade400.withValues(alpha: 0.3),
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    "You",
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.cyanAccent,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                )
+                              else
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: Colors.cyan.shade400.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: Colors.cyan.shade400.withValues(alpha: 0.3),
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    "Creator",
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.cyanAccent,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
                             ],
                           ),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.1),
-                            width: 0.5,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [Colors.cyan, Colors.blue],
-                                ),
-                                borderRadius: BorderRadius.circular(24),
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.2),
-                                  width: 1,
-                                ),
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(24),
-                                child: _creator!.photoUrl != null
-                                    ? Image.network(_creator!.photoUrl!, fit: BoxFit.cover)
-                                    : Icon(Icons.person, color: Colors.white.withValues(alpha: 0.8), size: 28),
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    "Hosted by",
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.white.withValues(alpha: 0.5),
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    _creator!.name,
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                              decoration: BoxDecoration(
-                                color: Colors.cyan.shade400.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: Colors.cyan.shade400.withValues(alpha: 0.3),
-                                ),
-                              ),
-                              child: const Text(
-                                "Creator",
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.cyanAccent,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
                         ),
                       ),
                     const SizedBox(height: 24),
@@ -759,14 +947,7 @@ class _EventDetailsState extends State<EventDetails> {
     return Column(
       children: [
         GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ProfileScreen(userId: user.id),
-              ),
-            );
-          },
+          onTap: () => _navigateToProfile(user.id),
           child: Container(
             width: 48,
             height: 48,

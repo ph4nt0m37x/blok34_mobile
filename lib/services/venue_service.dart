@@ -1,11 +1,13 @@
 import 'dart:io';
 
 import 'package:image_picker/image_picker.dart';
-
-import '../models/venue.dart';
+import 'package:blok34_mobile/models/venue.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:blok34_mobile/services/cloudinary_service.dart';
 
 class VenueService {
+
+  final CloudinaryService _cloudinaryService = CloudinaryService();
 
   Future<List<Venue>> getAllVenues() async {
     final snap = await FirebaseFirestore.instance
@@ -110,6 +112,25 @@ class VenueService {
       return File(pickedFile.path);
     }
     return null;
+  }
+
+  Future<String> uploadVenueBanner({
+    required File imageFile,
+    required String venueId,
+  }) async {
+    final bannerPath = await _cloudinaryService.uploadImage(
+      imageFile,
+      folder: 'venue_banners',
+    );
+
+    await FirebaseFirestore.instance
+        .collection('venues')
+        .doc(venueId)
+        .update({
+      'bannerPath': bannerPath,
+    });
+
+    return bannerPath;
   }
 
 }

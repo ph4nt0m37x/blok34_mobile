@@ -25,7 +25,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String? _errorMessage;
 
   Future<void> _register() async {
-    // Validate input
     if (_nameController.text.trim().isEmpty) {
       setState(() {
         _errorMessage = 'Please enter your name';
@@ -133,7 +132,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // Logo with bubbles
                     Column(
                       children: [
                         SizedBox(
@@ -157,8 +155,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
 
                     const SizedBox(height: 48),
-
-                    // Hero Text - Centered
                     const Text(
                       "Skopje is happening.",
                       textAlign: TextAlign.center,
@@ -189,10 +185,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         color: Colors.white.withValues(alpha: 0.7),
                       ),
                     ),
-
                     const SizedBox(height: 48),
-
-                    // Error Message
                     if (_errorMessage != null)
                       Container(
                         margin: const EdgeInsets.only(bottom: 16),
@@ -220,8 +213,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ],
                         ),
                       ),
-
-                    // Form Fields - Centered with max width
                     Container(
                       constraints: const BoxConstraints(maxWidth: 400),
                       child: Column(
@@ -294,8 +285,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
 
                     const SizedBox(height: 32),
-
-                    // Register Button - Centered with max width
                     Container(
                       constraints: const BoxConstraints(maxWidth: 400),
                       width: double.infinity,
@@ -339,8 +328,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
 
                     const SizedBox(height: 24),
-
-                    // Login Link
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -420,7 +407,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 }
 
-// Custom painter for register logo
 class RegisterLogoPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {

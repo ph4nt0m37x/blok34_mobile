@@ -6,8 +6,10 @@ import 'package:blok34_mobile/enums/venue_category.dart';
 import 'package:blok34_mobile/models/venue.dart';
 import 'package:blok34_mobile/widgets/venue_grid.dart';
 import 'package:blok34_mobile/screens/venues/venue_form_screen.dart';
-
-import '../../utils/text_formatter.dart';
+import 'package:blok34_mobile/screens/venues/venue_details_screen.dart';
+import 'package:blok34_mobile/services/venue_service.dart';
+import 'package:blok34_mobile/utils/text_formatter.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 class CreatedVenuesScreen extends StatefulWidget {
   final String currentUserId;
@@ -23,10 +25,13 @@ class CreatedVenuesScreen extends StatefulWidget {
 
 class _CreatedVenuesScreenState extends State<CreatedVenuesScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final VenueService _venueService = VenueService();
+
   VenueCategory? _selectedCategory;
   List<Venue> _filteredVenues = [];
   List<Venue> _myVenues = [];
   bool _isSearching = false;
+  bool _isLoading = true;
   Timer? _debounce;
   bool _showCategoryFilter = false;
 
@@ -43,69 +48,29 @@ class _CreatedVenuesScreenState extends State<CreatedVenuesScreen> {
     super.dispose();
   }
 
-  void _loadMyVenues() {
-    // MOCK MY VENUES - In real app, fetch from API using currentUserId
-    final List<Venue> allVenues = [
-      Venue(
-        id: '1',
-        name: 'The Jazz Club',
-        category: VenueCategory.bar,
-        description: 'Live jazz music every night. Great cocktails and atmosphere.',
-        address: '123 Main St, Downtown',
-        phone: '+1234567890',
-        isPublic: true,
-        venueManagerId: widget.currentUserId,
-        bannerPath: null,
-      ),
-      Venue(
-        id: '2',
-        name: 'Coffee & Code',
-        category: VenueCategory.cafe,
-        description: 'Cozy coffee shop perfect for working and meetings.',
-        address: '456 Oak Ave, Arts District',
-        phone: '+1234567891',
-        isPublic: true,
-        venueManagerId: 'user2',
-        bannerPath: null,
-      ),
-      Venue(
-        id: '3',
-        name: 'Grand Stadium',
-        category: VenueCategory.stadium,
-        description: 'Large venue for sports and concerts.',
-        address: '789 Sports Blvd',
-        phone: '+1234567892',
-        isPublic: true,
-        venueManagerId: 'user3',
-        bannerPath: null,
-      ),
-      Venue(
-        id: '4',
-        name: 'Art Gallery Downtown',
-        category: VenueCategory.gallery,
-        description: 'Contemporary art exhibitions and events.',
-        address: '321 Gallery Row',
-        phone: '+1234567893',
-        isPublic: true,
-        venueManagerId: widget.currentUserId,
-        bannerPath: null,
-      ),
-      Venue(
-        id: '5',
-        name: 'The Secret Spot',
-        category: VenueCategory.bar,
-        description: 'Hidden gem with craft beers.',
-        address: '555 Hidden Lane',
-        phone: '+1234567894',
-        isPublic: false,
-        venueManagerId: widget.currentUserId,
-        bannerPath: null,
-      ),
-    ];
+  Future<void> _loadMyVenues() async {
+    setState(() {
+      _isLoading = true;
+    });
 
-    // Filter venues that belong to current user
-    _myVenues = allVenues.where((venue) => venue.venueManagerId == widget.currentUserId).toList();
-    _filteredVenues = _myVenues;
+    try {
+      // Fetch venues managed by the current user
+      final venues = await _venueService.getVenuesByOwner(widget.currentUserId);
+
+      setState(() {
+        _myVenues = venues;
+        _filteredVenues = venues;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading my venues: $e');
+      setState(() {
+        _myVenues = [];
+        _filteredVenues = [];
+        _isLoading = false;
+      });
+      _showErrorSnackBar('Failed to load your venues');
+    }
   }
 
   void _searchVenues(String query) {
@@ -151,34 +116,52 @@ class _CreatedVenuesScreenState extends State<CreatedVenuesScreen> {
     _searchVenues('');
   }
 
-  void _navigateToEditVenue(Venue venue) {
-    Navigator.push(
+  Future<void> _navigateToEditVenue(Venue venue) async {
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => VenueFormScreen(
           venue: venue, // Pass existing venue for editing
         ),
       ),
-    ).then((_) {
-      // Refresh venues when returning from edit
-      _loadMyVenues();
+    );
+
+    if (result != null && mounted) {
+      await _loadMyVenues();
       _searchVenues(_searchController.text);
-    });
+    }
   }
 
-  void _navigateToRegisterVenue() {
-    Navigator.push(
+  Future<void> _navigateToVenueDetails(Venue venue) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => VenueDetails(
+          venue: venue,
+        ),
+      ),
+    );
+
+    if (result != null && mounted) {
+      await _loadMyVenues();
+      _searchVenues(_searchController.text);
+    }
+  }
+
+  Future<void> _navigateToRegisterVenue() async {
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => VenueFormScreen(
-          // currentUserId: widget.currentUserId,
+          // No venue passed = create mode
         ),
       ),
-    ).then((_) {
-      // Refresh venues when returning from create
-      _loadMyVenues();
+    );
+
+    if (result != null && mounted) {
+      await _loadMyVenues();
       _searchVenues(_searchController.text);
-    });
+    }
   }
 
   void _showVenueOptions(Venue venue) {
@@ -231,10 +214,7 @@ class _CreatedVenuesScreenState extends State<CreatedVenuesScreen> {
                 color: Colors.white,
                 onTap: () {
                   Navigator.pop(context);
-                  // Navigate to venue details
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Venue details - Coming Soon')),
-                  );
+                  _navigateToVenueDetails(venue);
                 },
               ),
               _buildBottomSheetOption(
@@ -243,10 +223,7 @@ class _CreatedVenuesScreenState extends State<CreatedVenuesScreen> {
                 color: Colors.white,
                 onTap: () {
                   Navigator.pop(context);
-                  // Navigate to events for this venue
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Events for ${venue.name} - Coming Soon')),
-                  );
+                  _showManageEvents(venue);
                 },
               ),
               _buildBottomSheetOption(
@@ -263,6 +240,17 @@ class _CreatedVenuesScreenState extends State<CreatedVenuesScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showManageEvents(Venue venue) {
+    // TODO: Implement manage events screen for this venue
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Manage events for ${venue.name} - Coming Soon'),
+        backgroundColor: Colors.cyan.shade400,
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
@@ -286,36 +274,87 @@ class _CreatedVenuesScreenState extends State<CreatedVenuesScreen> {
     );
   }
 
-  void _confirmDeleteVenue(Venue venue) {
-    showDialog(
+  Future<void> _confirmDeleteVenue(Venue venue) async {
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A3E),
         title: const Text('Delete Venue', style: TextStyle(color: Colors.white)),
         content: Text(
-          'Are you sure you want to delete "${venue.name}"? This action cannot be undone.',
+          'Are you sure you want to delete "${venue.name}"? This action cannot be undone. All events at this venue will also be deleted.',
           style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // Implement delete logic
-              setState(() {
-                _myVenues.removeWhere((v) => v.id == venue.id);
-                _filteredVenues.removeWhere((v) => v.id == venue.id);
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('${venue.name} deleted')),
-              );
-            },
+            onPressed: () => Navigator.pop(context, true),
             child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        // Delete the venue from Firestore
+        await _venueService.deleteVenue(venue.id);
+
+        // Delete banner from storage if exists
+        if (venue.bannerPath != null) {
+          try {
+            final storage = FirebaseStorage.instance;
+            final storageRef = storage.ref().child('venue_banners').child('${venue.id}.jpg');
+            await storageRef.delete();
+          } catch (e) {
+            print('Error deleting banner: $e');
+          }
+        }
+
+        // Refresh the list
+        await _loadMyVenues();
+        _searchVenues(_searchController.text);
+
+        if (mounted) {
+          _showSuccessSnackBar('${venue.name} deleted successfully');
+        }
+      } catch (e) {
+        print('Error deleting venue: $e');
+        setState(() {
+          _isLoading = false;
+        });
+        _showErrorSnackBar('Failed to delete venue. Please make sure there are no events at this venue.');
+      }
+    }
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red.shade400,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green.shade400,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -565,105 +604,124 @@ class _CreatedVenuesScreenState extends State<CreatedVenuesScreen> {
               ),
             ),
 
-            // Venues Grid
-            SliverPadding(
-              padding: const EdgeInsets.all(12),
-              sliver: _filteredVenues.isEmpty
-                  ? SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 400,
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                Colors.white.withValues(alpha: 0.08),
-                                Colors.white.withValues(alpha: 0.03),
-                              ],
-                            ),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.1),
-                              width: 0.5,
-                            ),
-                          ),
-                          child: Icon(
-                            _myVenues.isEmpty ? Icons.business_center : Icons.search_off,
-                            size: 64,
-                            color: Colors.white.withValues(alpha: 0.3),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        Text(
-                          _myVenues.isEmpty ? "No venues yet" : "No venues found",
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white70,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _myVenues.isEmpty
-                              ? "Register your first venue to get started"
-                              : "Try different keywords",
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.white.withValues(alpha: 0.4),
-                          ),
-                        ),
-                        if (_myVenues.isEmpty) ...[
-                          const SizedBox(height: 24),
-                          GestureDetector(
-                            onTap: _navigateToRegisterVenue,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    Colors.cyan.shade400.withValues(alpha: 0.2),
-                                    Colors.purple.shade400.withValues(alpha: 0.15),
-                                  ],
-                                ),
-                                borderRadius: BorderRadius.circular(30),
-                                border: Border.all(
-                                  color: Colors.cyan.shade400.withValues(alpha: 0.5),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.add_business, size: 18, color: Colors.cyan.shade300),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    "Register Venue",
-                                    style: TextStyle(
-                                      color: Colors.cyan.shade200,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
+            // Venues Grid or Loading State
+            if (_isLoading)
+              const SliverFillRemaining(
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.cyanAccent),
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        "Loading your venues...",
+                        style: TextStyle(color: Colors.white54),
+                      ),
+                    ],
                   ),
                 ),
               )
-                  : SliverToBoxAdapter(
-                child: VenueGrid(
-                  venues: _filteredVenues,
+            else
+              SliverPadding(
+                padding: const EdgeInsets.all(12),
+                sliver: _filteredVenues.isEmpty
+                    ? SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 400,
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Colors.white.withValues(alpha: 0.08),
+                                  Colors.white.withValues(alpha: 0.03),
+                                ],
+                              ),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.1),
+                                width: 0.5,
+                              ),
+                            ),
+                            child: Icon(
+                              _myVenues.isEmpty ? Icons.business_center : Icons.search_off,
+                              size: 64,
+                              color: Colors.white.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          Text(
+                            _myVenues.isEmpty ? "No venues yet" : "No venues found",
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white70,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _myVenues.isEmpty
+                                ? "Register your first venue to get started"
+                                : "Try different keywords",
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.white.withValues(alpha: 0.4),
+                            ),
+                          ),
+                          if (_myVenues.isEmpty) ...[
+                            const SizedBox(height: 24),
+                            GestureDetector(
+                              onTap: _navigateToRegisterVenue,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      Colors.cyan.shade400.withValues(alpha: 0.2),
+                                      Colors.purple.shade400.withValues(alpha: 0.15),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(30),
+                                  border: Border.all(
+                                    color: Colors.cyan.shade400.withValues(alpha: 0.5),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.add_business, size: 18, color: Colors.cyan.shade300),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      "Register Venue",
+                                      style: TextStyle(
+                                        color: Colors.cyan.shade200,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+                    : SliverToBoxAdapter(
+                  child: VenueGrid(
+                    venues: _filteredVenues,
+                  ),
                 ),
               ),
-            ),
 
             const SliverToBoxAdapter(
               child: SizedBox(height: 32),

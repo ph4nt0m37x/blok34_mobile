@@ -1,10 +1,16 @@
+import 'dart:io';
+
 import 'package:blok34_mobile/models/event.dart';
 import 'package:blok34_mobile/models/event_attendance.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:blok34_mobile/enums/attendance_status.dart';
 import 'package:blok34_mobile/enums/event_category.dart';
 
+import 'package:blok34_mobile/services/cloudinary_service.dart';
+
 class EventService {
+
+  final CloudinaryService _cloudinaryService = CloudinaryService();
 
   Future<List<Event>> getAllEvents() async {
     final snap = await FirebaseFirestore.instance
@@ -102,6 +108,26 @@ class EventService {
     return snap.docs
         .map((doc) => Event.fromJson(doc.data(), doc.id))
         .toList();
+  }
+
+  Future<String> uploadEventBanner({
+    required File imageFile,
+    required String eventId,
+  }) async {
+
+    final bannerPath = await _cloudinaryService.uploadImage(
+      imageFile,
+      folder: 'event_banners',
+    );
+
+    await FirebaseFirestore.instance
+        .collection('events')
+        .doc(eventId)
+        .update({
+      'bannerPath': bannerPath,
+    });
+
+    return bannerPath;
   }
 
   // ATTENDANCE

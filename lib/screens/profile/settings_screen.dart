@@ -1,6 +1,7 @@
 // screens/profile/settings_screen.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../services/auth_service.dart';
 import '../../models/app_user.dart';
 
@@ -14,6 +15,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final AuthService _authService = AuthService();
+  final ImagePicker _imagePicker = ImagePicker();
 
   // Profile form controllers
   final TextEditingController _nameController = TextEditingController();
@@ -76,30 +78,184 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
     }
   }
 
-  Future<void> _pickAndUploadImage() async {
-    final imageFile = await _authService.pickImageFromGallery();
+  // Show bottom sheet with image picker options
+  Future<void> _showImagePickerOptions() async {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      backgroundColor: const Color(0xFF1A1A3E),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 16),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 24),
+            // Camera option
+            _buildPickerOption(
+              icon: Icons.camera_alt,
+              label: 'Take a photo',
+              color: Colors.cyan,
+              onTap: () async {
+                Navigator.pop(context);
+                await _pickImageFromCamera();
+              },
+            ),
+            // Gallery option
+            _buildPickerOption(
+              icon: Icons.photo_library,
+              label: 'Choose from gallery',
+              color: Colors.purple,
+              onTap: () async {
+                Navigator.pop(context);
+                await _pickImageFromGallery();
+              },
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'Cancel',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.6),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
 
-    if (imageFile != null) {
-      setState(() {
-        _selectedImage = imageFile;
-        _isUploadingImage = true;
-      });
+  // Helper widget for bottom sheet options
+  Widget _buildPickerOption({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white.withValues(alpha: 0.08),
+                Colors.white.withValues(alpha: 0.03),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: color.withValues(alpha: 0.3),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color, size: 24),
+              ),
+              const SizedBox(width: 16),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const Spacer(),
+              Icon(Icons.chevron_right, color: color.withValues(alpha: 0.5)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-      try {
-        final downloadUrl = await _authService.uploadProfilePicture(imageFile);
-        setState(() {
-          _profileImageUrl = downloadUrl;
-          _selectedImage = null;
-        });
-        _showSnackBar('Profile picture updated successfully!');
-      } catch (e) {
-        _showSnackBar(e.toString(), isError: true);
-      } finally {
-        setState(() {
-          _isUploadingImage = false;
-        });
+  // Pick image from camera
+  Future<void> _pickImageFromCamera() async {
+    try {
+      final XFile? pickedFile = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 500,
+        maxHeight: 500,
+        imageQuality: 80,
+      );
+
+      if (pickedFile != null) {
+        final imageFile = File(pickedFile.path);
+        await _uploadProfileImage(imageFile);
       }
+    } catch (e) {
+      _showSnackBar('Error accessing camera: $e', isError: true);
     }
+  }
+
+  // Pick image from gallery
+  Future<void> _pickImageFromGallery() async {
+    try {
+      final XFile? pickedFile = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 500,
+        maxHeight: 500,
+        imageQuality: 80,
+      );
+
+      if (pickedFile != null) {
+        final imageFile = File(pickedFile.path);
+        await _uploadProfileImage(imageFile);
+      }
+    } catch (e) {
+      _showSnackBar('Error accessing gallery: $e', isError: true);
+    }
+  }
+
+  // Upload profile image to Cloudinary and Firestore
+  Future<void> _uploadProfileImage(File imageFile) async {
+    setState(() {
+      _selectedImage = imageFile;
+      _isUploadingImage = true;
+    });
+
+    try {
+      final downloadUrl = await _authService.uploadProfilePicture(imageFile);
+      setState(() {
+        _profileImageUrl = downloadUrl;
+        _selectedImage = null;
+      });
+      _showSnackBar('Profile picture updated successfully!');
+    } catch (e) {
+      _showSnackBar(e.toString(), isError: true);
+    } finally {
+      setState(() {
+        _isUploadingImage = false;
+      });
+    }
+  }
+
+  // Old method - now replaced by the bottom sheet
+  Future<void> _pickAndUploadImage() async {
+    await _showImagePickerOptions();
   }
 
   Future<void> _updateProfile() async {

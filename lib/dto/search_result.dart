@@ -14,16 +14,4 @@ class SearchResult {
     required this.events,
     required this.venues,
   });
-
-  // SearchResult.fromJson(Map<String, dynamic> json)
-  //     : query = json['query'],
-  //       users = (json['users'] as List)
-  //           .map((e) => AppUser.fromJson(e, e['id']))
-  //           .toList(),
-  //       events = (json['events'] as List)
-  //           .map((e) => Event.fromJson(e, e['id']))
-  //           .toList(),
-  //       venues = (json['venues'] as List)
-  //           .map((e) => Venue.fromJson(e, e['id']))
-  //           .toList();
 }

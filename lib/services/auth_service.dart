@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
-
+import 'package:blok34_mobile/services/cloudinary_service.dart';
 import 'package:blok34_mobile/models/app_user.dart';
 import 'user_service.dart';
 
@@ -12,6 +12,7 @@ class AuthService {
   final UserService _userService = UserService();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
+  final CloudinaryService _cloudinaryService = CloudinaryService();
 
   // ============ AUTHENTICATION METHODS ============
 
@@ -159,32 +160,31 @@ class AuthService {
     }
   }
 
-  // Upload profile picture
-  Future<String> uploadProfilePicture(File imageFile) async {
-    final user = _auth.currentUser;
-    if (user == null) throw Exception('No user logged in');
+  Future<String> uploadProfilePicture(
+      File imageFile,
+      ) async {
+    final user = FirebaseAuth.instance.currentUser;
 
-    try {
-      final storageRef = _storage.ref()
-          .child('profile_images')
-          .child('${user.uid}.jpg');
-
-      await storageRef.putFile(imageFile);
-      final downloadUrl = await storageRef.getDownloadURL();
-
-      await _firestore.collection('users').doc(user.uid).update({
-        'photoUrl': downloadUrl,
-      });
-
-      await user.updatePhotoURL(downloadUrl);
-
-      return downloadUrl;
-    } catch (e) {
-      throw Exception('Error uploading image: $e');
+    if (user == null) {
+      throw Exception('User not logged in');
     }
+
+    final imageUrl =
+    await _cloudinaryService.uploadImage(
+      imageFile,
+      folder: 'profile_pictures',
+    );
+
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .update({
+      'photoUrl': imageUrl,
+    });
+
+    return imageUrl;
   }
 
-  // Update profile (name, username, bio)
   Future<void> updateProfile({
     required String name,
     required String username,
@@ -210,7 +210,6 @@ class AuthService {
     }
   }
 
-  // Check if username is available
   Future<bool> isUsernameAvailable(String username) async {
     final currentUser = _auth.currentUser;
     if (currentUser == null) return false;
@@ -294,7 +293,6 @@ class AuthService {
     }
   }
 
-  // Pick image from gallery
   Future<File?> pickImageFromGallery() async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(
@@ -309,4 +307,20 @@ class AuthService {
     }
     return null;
   }
+
+  Future<File?> pickImageFromCamera() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.camera,
+      maxWidth: 500,
+      maxHeight: 500,
+      imageQuality: 80,
+    );
+
+    if (pickedFile != null) {
+      return File(pickedFile.path);
+    }
+    return null;
+  }
+
 }

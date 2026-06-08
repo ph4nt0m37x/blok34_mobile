@@ -1,13 +1,17 @@
 // screens/events/my_events_screen.dart
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:blok34_mobile/enums/event_category.dart';
 import 'package:blok34_mobile/models/event.dart';
 import 'package:blok34_mobile/widgets/event_grid.dart';
 import 'package:blok34_mobile/screens/events/event_form_screen.dart';
+import 'package:blok34_mobile/screens/events/event_details_screen.dart';
+import 'package:blok34_mobile/services/event_service.dart';
+import 'package:blok34_mobile/services/venue_service.dart';
+import 'package:blok34_mobile/utils/text_formatter.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
-import '../../utils/text_formatter.dart';
+import '../events/event_details_screen.dart';
 
 class CreatedEventsScreen extends StatefulWidget {
   final String currentUserId;
@@ -23,10 +27,14 @@ class CreatedEventsScreen extends StatefulWidget {
 
 class _CreatedEventsScreenState extends State<CreatedEventsScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final EventService _eventService = EventService();
+  final VenueService _venueService = VenueService();
+
   EventCategory? _selectedCategory;
   List<Event> _filteredEvents = [];
   List<Event> _myEvents = [];
   bool _isSearching = false;
+  bool _isLoading = true;
   Timer? _debounce;
   bool _showCategoryFilter = false;
 
@@ -43,64 +51,29 @@ class _CreatedEventsScreenState extends State<CreatedEventsScreen> {
     super.dispose();
   }
 
-  void _loadMyEvents() {
-    // MOCK MY EVENTS - In real app, fetch from API using currentUserId
-    final List<Event> allEvents = [
-      Event(
-        id: '1',
-        title: 'Flutter Meetup',
-        description: 'Meet local Flutter developers.',
-        startDate: DateTime.now().add(const Duration(days: 1)),
-        venueId: 'venue1',
-        category: EventCategory.meetup,
-        createdByUserId: widget.currentUserId,
-        bannerPath: null,
-      ),
-      Event(
-        id: '2',
-        title: 'Rock Concert',
-        description: 'Live music all night.',
-        startDate: DateTime.now().add(const Duration(days: 2)),
-        venueId: 'venue2',
-        category: EventCategory.liveMusic,
-        createdByUserId: 'user2',
-        bannerPath: null,
-      ),
-      Event(
-        id: '3',
-        title: 'Board Games Night',
-        description: 'Bring your favorite games.',
-        startDate: DateTime.now().add(const Duration(days: 3)),
-        venueId: 'venue3',
-        category: EventCategory.culturalEvent,
-        createdByUserId: 'user3',
-        bannerPath: null,
-      ),
-      Event(
-        id: '4',
-        title: 'Startup Networking',
-        description: 'Meet founders and investors.',
-        startDate: DateTime.now().add(const Duration(days: 5)),
-        venueId: 'venue4',
-        category: EventCategory.beerTasting,
-        createdByUserId: widget.currentUserId,
-        bannerPath: null,
-      ),
-      Event(
-        id: '5',
-        title: 'Yoga Workshop',
-        description: 'Morning yoga session for beginners.',
-        startDate: DateTime.now().add(const Duration(days: 7)),
-        venueId: 'venue5',
-        category: EventCategory.workshop,
-        createdByUserId: widget.currentUserId,
-        bannerPath: null,
-      ),
-    ];
+  Future<void> _loadMyEvents() async {
+    setState(() {
+      _isLoading = true;
+    });
 
-    // Filter events that belong to current user
-    _myEvents = allEvents.where((event) => event.createdByUserId == widget.currentUserId).toList();
-    _filteredEvents = _myEvents;
+    try {
+      // Fetch events created by the current user
+      final events = await _eventService.getEventsByCreator(widget.currentUserId);
+
+      setState(() {
+        _myEvents = events;
+        _filteredEvents = events;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading my events: $e');
+      setState(() {
+        _myEvents = [];
+        _filteredEvents = [];
+        _isLoading = false;
+      });
+      _showErrorSnackBar('Failed to load your events');
+    }
   }
 
   void _searchEvents(String query) {
@@ -145,22 +118,24 @@ class _CreatedEventsScreenState extends State<CreatedEventsScreen> {
     _searchEvents('');
   }
 
-  void _navigateToCreateEvent() {
-    Navigator.push(
+  Future<void> _navigateToCreateEvent() async {
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => EventFormScreen(
           currentUserId: widget.currentUserId,
         ),
       ),
-    ).then((_) {
-      _loadMyEvents();
+    );
+
+    if (result != null && mounted) {
+      await _loadMyEvents();
       _searchEvents(_searchController.text);
-    });
+    }
   }
 
-  void _navigateToEditEvent(Event event) {
-    Navigator.push(
+  Future<void> _navigateToEditEvent(Event event) async {
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => EventFormScreen(
@@ -168,11 +143,46 @@ class _CreatedEventsScreenState extends State<CreatedEventsScreen> {
           event: event,
         ),
       ),
-    ).then((_) {
+    );
 
-      _loadMyEvents();
+    if (result != null && mounted) {
+      await _loadMyEvents();
       _searchEvents(_searchController.text);
-    });
+    }
+  }
+
+  Future<void> _navigateToEventDetails(Event event) async {
+    try {
+      // Fetch venue details for the event
+      final venue = await _venueService.getVenueById(event.venueId);
+
+      if (!mounted) return;
+
+      // Check if venue exists
+      if (venue == null) {
+        _showErrorSnackBar('Venue not found for this event');
+        return;
+      }
+
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => EventDetails(
+            event: event,
+            venue: venue, // Now venue is non-nullable
+            currentAppUserId: widget.currentUserId,
+          ),
+        ),
+      );
+
+      if (result != null && mounted) {
+        await _loadMyEvents();
+        _searchEvents(_searchController.text);
+      }
+    } catch (e) {
+      print('Error loading venue: $e');
+      _showErrorSnackBar('Failed to load event details');
+    }
   }
 
   void _showEventOptions(Event event) {
@@ -225,10 +235,7 @@ class _CreatedEventsScreenState extends State<CreatedEventsScreen> {
                 color: Colors.white,
                 onTap: () {
                   Navigator.pop(context);
-                  // Navigate to event details
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Event details - Coming Soon')),
-                  );
+                  _navigateToEventDetails(event);
                 },
               ),
               _buildBottomSheetOption(
@@ -237,9 +244,7 @@ class _CreatedEventsScreenState extends State<CreatedEventsScreen> {
                 color: Colors.white,
                 onTap: () {
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Manage attendees for ${event.title} - Coming Soon')),
-                  );
+                  _showManageAttendees(event);
                 },
               ),
               _buildBottomSheetOption(
@@ -256,6 +261,17 @@ class _CreatedEventsScreenState extends State<CreatedEventsScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showManageAttendees(Event event) {
+    // TODO: Implement manage attendees screen
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Manage attendees for ${event.title} - Coming Soon'),
+        backgroundColor: Colors.cyan.shade400,
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
@@ -279,8 +295,8 @@ class _CreatedEventsScreenState extends State<CreatedEventsScreen> {
     );
   }
 
-  void _confirmDeleteEvent(Event event) {
-    showDialog(
+  Future<void> _confirmDeleteEvent(Event event) async {
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A3E),
@@ -291,24 +307,75 @@ class _CreatedEventsScreenState extends State<CreatedEventsScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // Implement delete logic
-              setState(() {
-                _myEvents.removeWhere((e) => e.id == event.id);
-                _filteredEvents.removeWhere((e) => e.id == event.id);
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('${event.title} deleted')),
-              );
-            },
+            onPressed: () => Navigator.pop(context, true),
             child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        // Delete the event from Firestore
+        await _eventService.deleteEvent(event.id);
+
+        // Delete banner from storage if exists
+        if (event.bannerPath != null) {
+          try {
+            final storage = FirebaseStorage.instance;
+            final storageRef = storage.ref().child('event_banners').child('${event.id}.jpg');
+            await storageRef.delete();
+          } catch (e) {
+            print('Error deleting banner: $e');
+          }
+        }
+
+        // Refresh the list
+        await _loadMyEvents();
+        _searchEvents(_searchController.text);
+
+        if (mounted) {
+          _showSuccessSnackBar('${event.title} deleted successfully');
+        }
+      } catch (e) {
+        print('Error deleting event: $e');
+        setState(() {
+          _isLoading = false;
+        });
+        _showErrorSnackBar('Failed to delete event');
+      }
+    }
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red.shade400,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green.shade400,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -560,105 +627,124 @@ class _CreatedEventsScreenState extends State<CreatedEventsScreen> {
               ),
             ),
 
-            // Events Grid
-            SliverPadding(
-              padding: const EdgeInsets.all(12),
-              sliver: _filteredEvents.isEmpty
-                  ? SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 400,
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                Colors.white.withValues(alpha: 0.08),
-                                Colors.white.withValues(alpha: 0.03),
-                              ],
-                            ),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.1),
-                              width: 0.5,
-                            ),
-                          ),
-                          child: Icon(
-                            _myEvents.isEmpty ? Icons.event_busy : Icons.search_off,
-                            size: 64,
-                            color: Colors.white.withValues(alpha: 0.3),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        Text(
-                          _myEvents.isEmpty ? "No events yet" : "No events found",
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white70,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _myEvents.isEmpty
-                              ? "Create your first event to get started"
-                              : "Try different keywords",
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.white.withValues(alpha: 0.4),
-                          ),
-                        ),
-                        if (_myEvents.isEmpty) ...[
-                          const SizedBox(height: 24),
-                          GestureDetector(
-                            onTap: _navigateToCreateEvent,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    Colors.cyan.shade400.withValues(alpha: 0.2),
-                                    Colors.purple.shade400.withValues(alpha: 0.15),
-                                  ],
-                                ),
-                                borderRadius: BorderRadius.circular(30),
-                                border: Border.all(
-                                  color: Colors.cyan.shade400.withValues(alpha: 0.5),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.add_circle_outline, size: 18, color: Colors.cyan.shade300),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    "Create Event",
-                                    style: TextStyle(
-                                      color: Colors.cyan.shade200,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
+            // Events Grid or Loading State
+            if (_isLoading)
+              const SliverFillRemaining(
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.cyanAccent),
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        "Loading your events...",
+                        style: TextStyle(color: Colors.white54),
+                      ),
+                    ],
                   ),
                 ),
               )
-                  : SliverToBoxAdapter(
-                child: EventGrid(
-                  events: _filteredEvents,
+            else
+              SliverPadding(
+                padding: const EdgeInsets.all(12),
+                sliver: _filteredEvents.isEmpty
+                    ? SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 400,
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Colors.white.withValues(alpha: 0.08),
+                                  Colors.white.withValues(alpha: 0.03),
+                                ],
+                              ),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.1),
+                                width: 0.5,
+                              ),
+                            ),
+                            child: Icon(
+                              _myEvents.isEmpty ? Icons.event_busy : Icons.search_off,
+                              size: 64,
+                              color: Colors.white.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          Text(
+                            _myEvents.isEmpty ? "No events yet" : "No events found",
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white70,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _myEvents.isEmpty
+                                ? "Create your first event to get started"
+                                : "Try different keywords",
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.white.withValues(alpha: 0.4),
+                            ),
+                          ),
+                          if (_myEvents.isEmpty) ...[
+                            const SizedBox(height: 24),
+                            GestureDetector(
+                              onTap: _navigateToCreateEvent,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      Colors.cyan.shade400.withValues(alpha: 0.2),
+                                      Colors.purple.shade400.withValues(alpha: 0.15),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(30),
+                                  border: Border.all(
+                                    color: Colors.cyan.shade400.withValues(alpha: 0.5),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.add_circle_outline, size: 18, color: Colors.cyan.shade300),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      "Create Event",
+                                      style: TextStyle(
+                                        color: Colors.cyan.shade200,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+                    : SliverToBoxAdapter(
+                  child: EventGrid(
+                    events: _filteredEvents,
+                  ),
                 ),
               ),
-            ),
 
             const SliverToBoxAdapter(
               child: SizedBox(height: 32),

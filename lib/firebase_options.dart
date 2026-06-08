@@ -3,6 +3,7 @@
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Default [FirebaseOptions] for use with your Firebase apps.
 ///
@@ -26,7 +27,10 @@ class DefaultFirebaseOptions {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
-        return ios;
+        throw UnsupportedError(
+          'DefaultFirebaseOptions have not been configured for iOS - '
+              'you can reconfigure this by running the FlutterFire CLI again.',
+        );
       case TargetPlatform.macOS:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for macos - '
@@ -49,19 +53,11 @@ class DefaultFirebaseOptions {
     }
   }
 
-  static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBVWLScz2BonD86Kp7QOLUxtNaF_4tNiOQ',
-    appId: '1:264183891151:android:84db72580019d8d743a3ba',
-    messagingSenderId: '264183891151',
-    projectId: 'blok34-app',
-    storageBucket: 'blok34-app.firebasestorage.app',
-  );
-  static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyBzzIe6C6FCSe6t-UTZ8FlD4tRdQk4z9aY',
-    appId: '1:264183891151:ios:5b204d8bbc9c4bce43a3ba',
-    messagingSenderId: '264183891151',
-    projectId: 'blok34-app',
-    storageBucket: 'blok34-app.firebasestorage.app',
-    iosBundleId: 'com.example.blok34Mobile',
+  static FirebaseOptions android = FirebaseOptions(
+    apiKey: dotenv.env['FIREBASE_API_KEY']!,
+    appId: dotenv.env['FIREBASE_APP_ID']!,
+    messagingSenderId: dotenv.env['FIREBASE_SENDER_ID']!,
+    projectId: dotenv.env['FIREBASE_PROJECT_ID']!,
+    storageBucket: dotenv.env['FIREBASE_STORAGE_BUCKET']!,
   );
 }

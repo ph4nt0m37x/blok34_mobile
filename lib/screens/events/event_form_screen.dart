@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:blok34_mobile/models/event.dart';
 import 'package:blok34_mobile/models/venue.dart';
@@ -5,21 +6,21 @@ import 'package:blok34_mobile/enums/event_category.dart';
 import 'package:blok34_mobile/widgets/glass_text_field.dart';
 import 'package:blok34_mobile/widgets/glass_dropdown.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:blok34_mobile/services/venue_service.dart';
 import 'package:blok34_mobile/services/event_service.dart';
-
-import '../../utils/text_formatter.dart';
+import 'package:blok34_mobile/services/cloudinary_service.dart';
+import 'package:blok34_mobile/utils/text_formatter.dart';
 
 class EventFormScreen extends StatefulWidget {
   final Event? event;
   final String currentUserId;
+  final String? preSelectedVenueId;
 
   const EventFormScreen({
     super.key,
     this.event,
     required this.currentUserId,
+    this.preSelectedVenueId,
   });
 
   @override
@@ -30,10 +31,9 @@ class _EventFormScreenState extends State<EventFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
-
+  final CloudinaryService _cloudinaryService = CloudinaryService();
   final VenueService _venueService = VenueService();
   final EventService _eventService = EventService();
-  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   late Future<List<Venue>> _venuesFuture;
   List<Venue> _venues = [];
@@ -61,10 +61,18 @@ class _EventFormScreenState extends State<EventFormScreen> {
       _venues = venues;
 
       if (widget.event != null) {
+        // Editing existing event - select its venue
         try {
           _selectedVenue = venues.firstWhere((v) => v.id == widget.event!.venueId);
         } catch (e) {
           _selectedVenue = venues.isNotEmpty ? venues.first : null;
+        }
+      } else if (widget.preSelectedVenueId != null) {
+        // Creating new event with pre-selected venue
+        try {
+          _selectedVenue = venues.firstWhere((v) => v.id == widget.preSelectedVenueId);
+        } catch (e) {
+          print('Pre-selected venue with ID ${widget.preSelectedVenueId} not found');
         }
       }
 
@@ -127,6 +135,42 @@ class _EventFormScreenState extends State<EventFormScreen> {
     );
   }
 
+  // Helper method to check if end date/time is valid
+  bool _isEndDateTimeValid() {
+    final startDateTime = _getCombinedStartDateTime();
+    final endDateTime = _getCombinedEndDateTime();
+
+    if (startDateTime == null) return true; // Start not set yet
+    if (!_hasEndDate) return true; // End date not enabled
+    if (endDateTime == null) return true; // End not fully set yet
+
+    return endDateTime.isAfter(startDateTime);
+  }
+
+  // Adjust end date/time if it becomes invalid after start date changes
+  void _validateAndAdjustEndDateTime() {
+    if (!_hasEndDate) return;
+
+    final startDateTime = _getCombinedStartDateTime();
+    final endDateTime = _getCombinedEndDateTime();
+
+    if (startDateTime != null && endDateTime != null && !endDateTime.isAfter(startDateTime)) {
+      // End date/time is invalid, adjust it to be 1 hour after start
+      setState(() {
+        _endDate = DateTime(startDateTime.year, startDateTime.month, startDateTime.day);
+        _endTime = DateTime(
+          startDateTime.year,
+          startDateTime.month,
+          startDateTime.day,
+          startDateTime.hour + 1,
+          startDateTime.minute,
+        );
+      });
+
+      _showErrorSnackBar('End date/time was adjusted to be after start date/time');
+    }
+  }
+
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -151,6 +195,18 @@ class _EventFormScreenState extends State<EventFormScreen> {
     );
   }
 
+  void _showWarningSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.orange.shade400,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
   Future<void> _pickBannerImage() async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(
@@ -167,20 +223,18 @@ class _EventFormScreenState extends State<EventFormScreen> {
     }
   }
 
-  Future<String?> _uploadBannerImage(String eventId) async {
-    if (_bannerPath == null) return _bannerUrl;
+  Future<String?> _uploadBannerImage() async {
+    if (_bannerPath == null) {
+      return _bannerUrl;
+    }
 
     try {
-      final file = File(_bannerPath!);
-      final storageRef = _storage.ref()
-          .child('event_banners')
-          .child('$eventId.jpg');
-
-      await storageRef.putFile(file);
-      final downloadUrl = await storageRef.getDownloadURL();
-      return downloadUrl;
+      return await _cloudinaryService.uploadImage(
+        File(_bannerPath!),
+        folder: 'event_banners',
+      );
     } catch (e) {
-      print('Error uploading banner: $e');
+      debugPrint('Cloudinary upload failed: $e');
       return null;
     }
   }
@@ -204,7 +258,8 @@ class _EventFormScreenState extends State<EventFormScreen> {
               onPrimary: Colors.white,
               surface: Color(0xFF1A1A3E),
               onSurface: Colors.white,
-            ), dialogTheme: DialogThemeData(backgroundColor: const Color(0xFF1A1A3E)),
+            ),
+            dialogTheme: DialogThemeData(backgroundColor: const Color(0xFF1A1A3E)),
           ),
           child: child!,
         );
@@ -220,18 +275,21 @@ class _EventFormScreenState extends State<EventFormScreen> {
           } else {
             _startTime = DateTime(picked.year, picked.month, picked.day, _startTime!.hour, _startTime!.minute);
           }
+
+          // After changing start date, validate and adjust end date if needed
+          _validateAndAdjustEndDateTime();
         } else {
+          // Check if selected end date is valid
           final startDateTime = _getCombinedStartDateTime();
-          final tempTime = _endTime ?? DateTime(picked.year, picked.month, picked.day, 23, 0);
           final tempEndDateTime = DateTime(
             picked.year,
             picked.month,
             picked.day,
-            tempTime.hour,
-            tempTime.minute,
+            _endTime?.hour ?? 23,
+            _endTime?.minute ?? 0,
           );
 
-          if (startDateTime != null && tempEndDateTime.isBefore(startDateTime)) {
+          if (startDateTime != null && !tempEndDateTime.isAfter(startDateTime)) {
             _showErrorSnackBar('End date cannot be before start date');
             return;
           }
@@ -271,7 +329,8 @@ class _EventFormScreenState extends State<EventFormScreen> {
               dialBackgroundColor: Color(0xFF2D1B69),
               hourMinuteColor: Color(0xFF2D1B69),
               entryModeIconColor: Color(0xFF00BCD4),
-            ), dialogTheme: DialogThemeData(backgroundColor: const Color(0xFF1A1A3E)),
+            ),
+            dialogTheme: DialogThemeData(backgroundColor: const Color(0xFF1A1A3E)),
           ),
           child: child!,
         );
@@ -282,13 +341,25 @@ class _EventFormScreenState extends State<EventFormScreen> {
       setState(() {
         if (isStartTime) {
           if (_startDate != null) {
-            _startTime = DateTime(
+            final newStartTime = DateTime(
               _startDate!.year,
               _startDate!.month,
               _startDate!.day,
               picked.hour,
               picked.minute,
             );
+
+            // Check if new start time makes end time invalid
+            final endDateTime = _getCombinedEndDateTime();
+            if (_hasEndDate && endDateTime != null && !endDateTime.isAfter(newStartTime)) {
+              _showErrorSnackBar('Start time cannot be after end time');
+              return;
+            }
+
+            _startTime = newStartTime;
+
+            // After changing start time, validate and adjust end time if needed
+            _validateAndAdjustEndDateTime();
           } else {
             final now = DateTime.now();
             _startDate = now;
@@ -296,7 +367,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
           }
         } else {
           final baseDate = _endDate ?? _startDate ?? DateTime.now();
-          final tempTime = DateTime(
+          final newEndTime = DateTime(
             baseDate.year,
             baseDate.month,
             baseDate.day,
@@ -306,8 +377,8 @@ class _EventFormScreenState extends State<EventFormScreen> {
 
           final startDateTime = _getCombinedStartDateTime();
 
-          if (startDateTime != null && tempTime.isBefore(startDateTime)) {
-            _showErrorSnackBar('End time cannot be before start time');
+          if (startDateTime != null && !newEndTime.isAfter(startDateTime)) {
+            _showErrorSnackBar('End time cannot be before or equal to start time');
             return;
           }
 
@@ -348,8 +419,8 @@ class _EventFormScreenState extends State<EventFormScreen> {
     }
 
     if (_hasEndDate && endDateTime != null) {
-      if (endDateTime.isBefore(startDateTime)) {
-        return "End date must be after start date";
+      if (!endDateTime.isAfter(startDateTime)) {
+        return "End date and time must be after start date and time";
       }
       if (endDateTime.isBefore(DateTime.now())) {
         return "End date cannot be in the past";
@@ -377,7 +448,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
           String? finalBannerUrl = _bannerUrl;
 
           if (_bannerPath != null) {
-            finalBannerUrl = await _uploadBannerImage(widget.event!.id);
+            finalBannerUrl = await _uploadBannerImage();
           }
 
           final updatedEvent = Event(
@@ -400,12 +471,10 @@ class _EventFormScreenState extends State<EventFormScreen> {
             Navigator.pop(context, updatedEvent);
           }
         } else {
-          // Create new event - first create a temporary ID for the banner
-          final tempId = DateTime.now().millisecondsSinceEpoch.toString();
           String? finalBannerUrl;
 
           if (_bannerPath != null) {
-            finalBannerUrl = await _uploadBannerImage(tempId);
+            finalBannerUrl = await _uploadBannerImage();
           }
 
           final newEvent = Event(
@@ -464,16 +533,6 @@ class _EventFormScreenState extends State<EventFormScreen> {
               try {
                 await _eventService.deleteEvent(widget.event!.id);
 
-                // Also delete banner from storage if exists
-                if (widget.event!.bannerPath != null) {
-                  try {
-                    final storageRef = _storage.ref().child('event_banners').child('${widget.event!.id}.jpg');
-                    await storageRef.delete();
-                  } catch (e) {
-                    print('Error deleting banner: $e');
-                  }
-                }
-
                 if (mounted) {
                   _showSuccessSnackBar('Event deleted successfully!');
                   setState(() => _isLoading = false);
@@ -500,6 +559,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
     final isEditing = widget.event != null;
     final screenTitle = isEditing ? "Edit Event" : "Create Event";
     final buttonText = isEditing ? "Save Changes" : "Create Event";
+    final isEndDateTimeValid = _isEndDateTimeValid();
 
     return Scaffold(
       body: Container(
@@ -972,6 +1032,17 @@ class _EventFormScreenState extends State<EventFormScreen> {
                                   if (!value) {
                                     _endDate = null;
                                     _endTime = null;
+                                  } else if (_startDate != null && _startTime != null) {
+                                    // When enabling end date, set a default end time 1 hour after start
+                                    final startDateTime = _getCombinedStartDateTime()!;
+                                    _endDate = DateTime(startDateTime.year, startDateTime.month, startDateTime.day);
+                                    _endTime = DateTime(
+                                      startDateTime.year,
+                                      startDateTime.month,
+                                      startDateTime.day,
+                                      startDateTime.hour + 1,
+                                      startDateTime.minute,
+                                    );
                                   }
                                 });
                               },
@@ -998,77 +1069,111 @@ class _EventFormScreenState extends State<EventFormScreen> {
                             ),
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.1),
-                              width: 0.5,
+                              color: isEndDateTimeValid
+                                  ? Colors.white.withValues(alpha: 0.1)
+                                  : Colors.red.shade400.withValues(alpha: 0.3),
+                              width: isEndDateTimeValid ? 0.5 : 1,
                             ),
                           ),
-                          child: Row(
+                          child: Column(
                             children: [
-                              Expanded(
-                                child: GestureDetector(
-                                  onTap: () => _selectDate(false),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.05),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: Colors.white.withValues(alpha: 0.1),
-                                      ),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.date_range, size: 20, color: Colors.purple.shade200),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Text(
-                                            _endDate != null ? _formatDate(_endDate!) : "Select Date",
-                                            style: TextStyle(
-                                              color: _endDate != null
-                                                  ? Colors.white
-                                                  : Colors.white.withValues(alpha: 0.5),
-                                            ),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: GestureDetector(
+                                      onTap: () => _selectDate(false),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(alpha: 0.05),
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(
+                                            color: Colors.white.withValues(alpha: 0.1),
                                           ),
                                         ),
-                                        Icon(Icons.arrow_drop_down, color: Colors.purple.shade200),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: GestureDetector(
-                                  onTap: () => _selectTime(false),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.05),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: Colors.white.withValues(alpha: 0.1),
+                                        child: Row(
+                                          children: [
+                                            Icon(Icons.date_range, size: 20, color: Colors.purple.shade200),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Text(
+                                                _endDate != null ? _formatDate(_endDate!) : "Select Date",
+                                                style: TextStyle(
+                                                  color: _endDate != null
+                                                      ? Colors.white
+                                                      : Colors.white.withValues(alpha: 0.5),
+                                                ),
+                                              ),
+                                            ),
+                                            Icon(Icons.arrow_drop_down, color: Colors.purple.shade200),
+                                          ],
+                                        ),
                                       ),
                                     ),
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.access_time, size: 20, color: Colors.purple.shade200),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Text(
-                                            _endTime != null ? _formatTime(_endTime!) : "Select Time",
-                                            style: TextStyle(
-                                              color: _endTime != null
-                                                  ? Colors.white
-                                                  : Colors.white.withValues(alpha: 0.5),
-                                            ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: GestureDetector(
+                                      onTap: () => _selectTime(false),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(alpha: 0.05),
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(
+                                            color: Colors.white.withValues(alpha: 0.1),
                                           ),
                                         ),
-                                        Icon(Icons.arrow_drop_down, color: Colors.purple.shade200),
-                                      ],
+                                        child: Row(
+                                          children: [
+                                            Icon(Icons.access_time, size: 20, color: Colors.purple.shade200),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Text(
+                                                _endTime != null ? _formatTime(_endTime!) : "Select Time",
+                                                style: TextStyle(
+                                                  color: _endTime != null
+                                                      ? Colors.white
+                                                      : Colors.white.withValues(alpha: 0.5),
+                                                ),
+                                              ),
+                                            ),
+                                            Icon(Icons.arrow_drop_down, color: Colors.purple.shade200),
+                                          ],
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                ),
+                                ],
                               ),
+                              if (!isEndDateTimeValid && _endDate != null && _endTime != null) ...[
+                                const SizedBox(height: 12),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red.shade400.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: Colors.red.shade400.withValues(alpha: 0.3),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.warning_amber_rounded, size: 16, color: Colors.red.shade300),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          "End time must be after start time",
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.red.shade300,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),

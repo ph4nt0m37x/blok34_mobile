@@ -1,4 +1,5 @@
 import 'package:blok34_mobile/screens/events/event_form_screen.dart';
+import 'package:blok34_mobile/screens/venues/venue_form_screen.dart'; // Add this import
 import 'package:flutter/material.dart';
 import 'package:blok34_mobile/models/venue.dart';
 import 'package:blok34_mobile/models/event.dart';
@@ -41,7 +42,6 @@ class _VenueDetailsState extends State<VenueDetails> {
     try {
       final events = await _eventService.getEventsByVenueId(widget.venue.id);
 
-
       setState(() {
         _upcomingEvents = events;
         _isLoading = false;
@@ -58,6 +58,8 @@ class _VenueDetailsState extends State<VenueDetails> {
   @override
   Widget build(BuildContext context) {
     final authProvider = context.read<AuthStateProvider>();
+    final isOwner = widget.venue.venueManagerId == authProvider.currentUser?.id.toString();
+    final canCreateEvent = widget.venue.isPublic && authProvider.currentUser != null || isOwner;
 
     return Scaffold(
       body: Container(
@@ -182,7 +184,7 @@ class _VenueDetailsState extends State<VenueDetails> {
                   children: [
                     const SizedBox(height: 16),
 
-                    // Venue name and Create Button row
+                    // Venue name and Action Buttons row
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
@@ -197,7 +199,63 @@ class _VenueDetailsState extends State<VenueDetails> {
                             ),
                           ),
                         ),
-                        if (widget.venue.isPublic && authProvider.currentUser != null || widget.venue.venueManagerId == authProvider.currentUser?.id.toString())
+                        // Edit Button (only for owner)
+                        if (isOwner)
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => VenueFormScreen(
+                                    venue: widget.venue,
+                                  ),
+                                ),
+                              ).then((_) {
+                                // Refresh the page when coming back from edit
+                                setState(() {});
+                              });
+                            },
+                            child: Container(
+                              margin: const EdgeInsets.only(right: 12),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.centerLeft,
+                                  end: Alignment.centerRight,
+                                  colors: [
+                                    Colors.orange.shade400.withValues(alpha: 0.2),
+                                    Colors.red.shade400.withValues(alpha: 0.2),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(25),
+                                border: Border.all(
+                                  color: Colors.orange.shade400.withValues(alpha: 0.4),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.edit_outlined,
+                                    color: Colors.orange.shade300,
+                                    size: 18,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    "Edit",
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.orange.shade200,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        // Create Event Button
+                        if (canCreateEvent)
                           GestureDetector(
                             onTap: () {
                               Navigator.push(
@@ -205,6 +263,7 @@ class _VenueDetailsState extends State<VenueDetails> {
                                 MaterialPageRoute(
                                   builder: (context) => EventFormScreen(
                                     currentUserId: authProvider.currentUser!.id,
+                                    preSelectedVenueId: widget.venue.id, // Optional: pre-select this venue
                                   ),
                                 ),
                               ).then((_) {
@@ -396,7 +455,7 @@ class _VenueDetailsState extends State<VenueDetails> {
                       itemHeight: 330,
                       itemBuilder: (context, event) {
                         return EventCard(
-                          event: event
+                            event: event
                         );
                       },
                       emptyStateWidget: Container(
@@ -430,7 +489,7 @@ class _VenueDetailsState extends State<VenueDetails> {
                                   color: Colors.white.withValues(alpha: 0.4),
                                 ),
                               ),
-                              if (widget.venue.isPublic && authProvider.currentUser != null) ...[
+                              if (canCreateEvent) ...[
                                 const SizedBox(height: 16),
                                 GestureDetector(
                                   onTap: () {
@@ -439,6 +498,7 @@ class _VenueDetailsState extends State<VenueDetails> {
                                       MaterialPageRoute(
                                         builder: (context) => EventFormScreen(
                                           currentUserId: authProvider.currentUser!.id,
+                                          preSelectedVenueId: widget.venue.id,
                                         ),
                                       ),
                                     ).then((_) {
