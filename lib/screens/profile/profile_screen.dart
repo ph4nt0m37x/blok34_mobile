@@ -1,4 +1,5 @@
 // screens/profile/profile_screen.dart
+import 'package:blok34_mobile/screens/events/event_details_screen.dart';
 import 'package:blok34_mobile/screens/profile/settings_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:blok34_mobile/services/auth_service.dart';
@@ -7,6 +8,10 @@ import 'package:blok34_mobile/services/event_service.dart';
 import 'package:blok34_mobile/models/app_user.dart';
 import 'package:blok34_mobile/models/event.dart';
 import 'package:blok34_mobile/models/event_attendance.dart';
+import 'package:provider/provider.dart';
+
+import '../../providers/auth_state_provider.dart';
+import '../../services/venue_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String userId;
@@ -139,16 +144,29 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     );
   }
 
-  void _navigateToEventDetails(Event event) {
-    // TODO: Navigate to event details screen when implemented
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Viewing ${event.title} - Coming Soon'),
-        behavior: SnackBarBehavior.floating,
+  void _navigateToEventDetails(Event event) async {
+    final authProvider = context.read<AuthStateProvider>();
+
+    final venue = await VenueService().getVenueById(event.venueId);
+
+    if (venue == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Venue not found")),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EventDetails(
+          event: event,
+          venue: venue,
+          currentAppUserId: authProvider.currentUser!.id,
+        ),
       ),
     );
   }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(

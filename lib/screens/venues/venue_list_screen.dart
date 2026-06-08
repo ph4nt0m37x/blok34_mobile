@@ -5,6 +5,7 @@ import 'package:blok34_mobile/models/venue.dart';
 import 'package:blok34_mobile/widgets/venue_grid.dart';
 import 'package:blok34_mobile/screens/venues/venue_form_screen.dart';
 import 'package:blok34_mobile/services/venue_service.dart';
+import 'package:blok34_mobile/services/search_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:blok34_mobile/utils/text_formatter.dart';
 
@@ -18,6 +19,7 @@ class VenuesScreen extends StatefulWidget {
 class _VenuesScreenState extends State<VenuesScreen> {
   final TextEditingController _searchController = TextEditingController();
   final VenueService _venueService = VenueService();
+  final SearchService _searchService = SearchService();
 
   VenueCategory? _selectedCategory;
   List<Venue> _allVenues = [];
@@ -46,8 +48,7 @@ class _VenuesScreenState extends State<VenuesScreen> {
     });
 
     try {
-      List<Venue> venues;
-        venues = await _venueService.getAllVenues();
+      List<Venue> venues = await _venueService.getAllVenues();
 
       setState(() {
         _allVenues = venues;
@@ -66,37 +67,75 @@ class _VenuesScreenState extends State<VenuesScreen> {
             backgroundColor: Colors.red.shade400,
             behavior: SnackBarBehavior.floating,
             margin: const EdgeInsets.all(16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
     }
   }
 
-  void _searchVenues(String query) {
+  // Updated: Now uses SearchService for Firestore queries
+  Future<void> _searchVenues(String query) async {
+    if (query.isEmpty && _selectedCategory == null) {
+      // No filters - load all venues
+      await _loadVenues();
+      return;
+    }
+
     setState(() {
       _isSearching = query.isNotEmpty;
+      _isLoading = true;
     });
 
-    setState(() {
-      if (query.isEmpty && _selectedCategory == null) {
-        _filteredVenues = _allVenues;
+    try {
+      List<Venue> results;
+
+      if (query.isNotEmpty && _selectedCategory != null) {
+        // Both search query and category filter
+        // First search by query using SearchService, then filter by category
+        final searchResults = await _searchService.searchVenues(query);
+        results = searchResults
+            .where((venue) => venue.category == _selectedCategory)
+            .toList();
+      } else if (query.isNotEmpty) {
+        // Only search query - use SearchService
+        results = await _searchService.searchVenues(query);
       } else {
-        _filteredVenues = _allVenues.where((venue) {
-          final matchesQuery = query.isEmpty ||
-              venue.name.toLowerCase().contains(query.toLowerCase()) ||
-              venue.description.toLowerCase().contains(query.toLowerCase()) ||
-              venue.address.toLowerCase().contains(query.toLowerCase());
-
-          final matchesCategory = _selectedCategory == null ||
-              venue.category == _selectedCategory;
-
-          return matchesQuery && matchesCategory;
-        }).toList();
+        results = await _searchService.getVenuesByCategory(_selectedCategory!.name);
       }
-    });
+
+      setState(() {
+        _filteredVenues = results;
+        _isLoading = false;
+      });
+    }
+    //   catch (e) {
+    //   print('Error searching venues: $e');
+    //   setState(() {
+    //     _isLoading = false;
+    //     _filteredVenues = [];
+    //   });
+    //
+    //   if (mounted) {
+    //     ScaffoldMessenger.of(context).showSnackBar(
+    //       SnackBar(
+    //         content: Text('Search failed: ${e.toString()}'),
+    //         backgroundColor: Colors.red.shade400,
+    //         behavior: SnackBarBehavior.floating,
+    //         margin: const EdgeInsets.all(16),
+    //       ),
+    //     );
+    //   }
+    // }
+    catch (e, stackTrace) {
+      print(e);
+      print(stackTrace);
+    }
   }
 
+  // Updated: Category selection handler
   void _searchByCategory(VenueCategory? category) {
     setState(() {
       _selectedCategory = category;
@@ -104,24 +143,25 @@ class _VenuesScreenState extends State<VenuesScreen> {
       _showCategoryFilter = false;
     });
 
+    // Trigger search with current query and new category
     _searchVenues(_searchController.text);
   }
 
+  // Updated: Clear all filters
   void _clearFilters() {
     _searchController.clear();
     setState(() {
       _selectedCategory = null;
       _showCategoryFilter = false;
+      _isSearching = false;
     });
-    _searchVenues('');
+    _loadVenues();
   }
 
   Future<void> _navigateToRegisterVenue() async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const VenueFormScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const VenueFormScreen()),
     );
 
     // Refresh the venues list if a new venue was created
@@ -194,10 +234,14 @@ class _VenuesScreenState extends State<VenuesScreen> {
                               controller: _searchController,
                               style: const TextStyle(color: Colors.white),
                               onChanged: (value) {
-                                if (_debounce?.isActive ?? false) _debounce!.cancel();
-                                _debounce = Timer(const Duration(milliseconds: 400), () {
-                                  _searchVenues(value);
-                                });
+                                if (_debounce?.isActive ?? false)
+                                  _debounce!.cancel();
+                                _debounce = Timer(
+                                  const Duration(milliseconds: 400),
+                                  () {
+                                    _searchVenues(value);
+                                  },
+                                );
                               },
                               decoration: InputDecoration(
                                 hintText: 'Search venues...',
@@ -210,12 +254,14 @@ class _VenuesScreenState extends State<VenuesScreen> {
                                 ),
                                 suffixIcon: _searchController.text.isNotEmpty
                                     ? IconButton(
-                                  icon: Icon(
-                                    Icons.clear,
-                                    color: Colors.white.withValues(alpha: 0.6),
-                                  ),
-                                  onPressed: _clearFilters,
-                                )
+                                        icon: Icon(
+                                          Icons.clear,
+                                          color: Colors.white.withValues(
+                                            alpha: 0.6,
+                                          ),
+                                        ),
+                                        onPressed: _clearFilters,
+                                      )
                                     : null,
                                 border: InputBorder.none,
                                 contentPadding: const EdgeInsets.symmetric(
@@ -242,17 +288,23 @@ class _VenuesScreenState extends State<VenuesScreen> {
                                 end: Alignment.bottomRight,
                                 colors: [
                                   _selectedCategory != null
-                                      ? Colors.cyan.shade400.withValues(alpha: 0.2)
+                                      ? Colors.cyan.shade400.withValues(
+                                          alpha: 0.2,
+                                        )
                                       : Colors.white.withValues(alpha: 0.08),
                                   _selectedCategory != null
-                                      ? Colors.purple.shade400.withValues(alpha: 0.15)
+                                      ? Colors.purple.shade400.withValues(
+                                          alpha: 0.15,
+                                        )
                                       : Colors.white.withValues(alpha: 0.03),
                                 ],
                               ),
                               borderRadius: BorderRadius.circular(30),
                               border: Border.all(
                                 color: _selectedCategory != null
-                                    ? Colors.cyan.shade400.withValues(alpha: 0.4)
+                                    ? Colors.cyan.shade400.withValues(
+                                        alpha: 0.4,
+                                      )
                                     : Colors.white.withValues(alpha: 0.1),
                                 width: 0.5,
                               ),
@@ -276,7 +328,10 @@ class _VenuesScreenState extends State<VenuesScreen> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             colors: [
@@ -292,10 +347,16 @@ class _VenuesScreenState extends State<VenuesScreen> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.category, size: 14, color: Colors.cyan.shade300),
+                            Icon(
+                              Icons.category,
+                              size: 14,
+                              color: Colors.cyan.shade300,
+                            ),
                             const SizedBox(width: 6),
                             Text(
-                              TextFormatter.formatCategoryName(_selectedCategory!.name),
+                              TextFormatter.formatCategoryName(
+                                _selectedCategory!.name,
+                              ),
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.cyan.shade200,
@@ -375,109 +436,118 @@ class _VenuesScreenState extends State<VenuesScreen> {
                       SizedBox(height: 16),
                       Text(
                         "Loading venues...",
-                        style: TextStyle(
-                          color: Colors.white70,
-                        ),
+                        style: TextStyle(color: Colors.white70),
                       ),
                     ],
                   ),
                 ),
               )
             else
-            // Venues Grid
+              // Venues Grid
               SliverPadding(
                 padding: const EdgeInsets.all(12),
                 sliver: _filteredVenues.isEmpty
                     ? SliverToBoxAdapter(
-                  child: SizedBox(
-                    height: 400,
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(24),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  Colors.white.withValues(alpha: 0.08),
-                                  Colors.white.withValues(alpha: 0.03),
-                                ],
-                              ),
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.1),
-                                width: 0.5,
-                              ),
-                            ),
-                            child: Icon(
-                              Icons.search_off,
-                              size: 64,
-                              color: Colors.white.withValues(alpha: 0.3),
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          const Text(
-                            "No venues found",
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white70,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _selectedCategory != null || _searchController.text.isNotEmpty
-                                ? "Try different keywords or filters"
-                                : "No venues available yet",
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: Colors.white54,
-                            ),
-                          ),
-                          if (_selectedCategory != null || _searchController.text.isNotEmpty)
-                            const SizedBox(height: 16),
-                          if (_selectedCategory != null || _searchController.text.isNotEmpty)
-                            GestureDetector(
-                              onTap: _clearFilters,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      Colors.cyan.shade400.withValues(alpha: 0.15),
-                                      Colors.purple.shade400.withValues(alpha: 0.1),
-                                    ],
+                        child: SizedBox(
+                          height: 400,
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(24),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        Colors.white.withValues(alpha: 0.08),
+                                        Colors.white.withValues(alpha: 0.03),
+                                      ],
+                                    ),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.1,
+                                      ),
+                                      width: 0.5,
+                                    ),
                                   ),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: Colors.cyan.shade400.withValues(alpha: 0.3),
+                                  child: Icon(
+                                    Icons.search_off,
+                                    size: 64,
+                                    color: Colors.white.withValues(alpha: 0.3),
                                   ),
                                 ),
-                                child: const Text(
-                                  "Clear Filters",
+                                const SizedBox(height: 24),
+                                const Text(
+                                  "No venues found",
                                   style: TextStyle(
-                                    color: Colors.cyan,
-                                    fontSize: 14,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white70,
                                   ),
                                 ),
-                              ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  _selectedCategory != null ||
+                                          _searchController.text.isNotEmpty
+                                      ? "Try different keywords or filters"
+                                      : "No venues available yet",
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.white54,
+                                  ),
+                                ),
+                                if (_selectedCategory != null ||
+                                    _searchController.text.isNotEmpty)
+                                  const SizedBox(height: 16),
+                                if (_selectedCategory != null ||
+                                    _searchController.text.isNotEmpty)
+                                  GestureDetector(
+                                    onTap: _clearFilters,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            Colors.cyan.shade400.withValues(
+                                              alpha: 0.15,
+                                            ),
+                                            Colors.purple.shade400.withValues(
+                                              alpha: 0.1,
+                                            ),
+                                          ],
+                                        ),
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(
+                                          color: Colors.cyan.shade400
+                                              .withValues(alpha: 0.3),
+                                        ),
+                                      ),
+                                      child: const Text(
+                                        "Clear Filters",
+                                        style: TextStyle(
+                                          color: Colors.cyan,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
-                        ],
-                      ),
-                    ),
-                  ),
-                )
+                          ),
+                        ),
+                      )
                     : SliverToBoxAdapter(
-                  child: VenueGrid(venues: _filteredVenues),
-                ),
+                        child: VenueGrid(venues: _filteredVenues),
+                      ),
               ),
 
-            const SliverToBoxAdapter(
-              child: SizedBox(height: 32),
-            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 32)),
           ],
         ),
       ),
@@ -502,15 +572,15 @@ class _VenuesScreenState extends State<VenuesScreen> {
           icon: Icon(Icons.add_business, size: 20, color: Colors.white),
           label: Text(
             "Register Venue",
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w500,
-            ),
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
           ),
           backgroundColor: Colors.transparent,
           elevation: 0,
           highlightElevation: 0,
-          extendedPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          extendedPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 12,
+          ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(30),
           ),
@@ -532,21 +602,21 @@ class _VenuesScreenState extends State<VenuesScreen> {
         decoration: BoxDecoration(
           gradient: isSelected
               ? LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.cyan.shade400.withValues(alpha: 0.25),
-              Colors.purple.shade400.withValues(alpha: 0.2),
-            ],
-          )
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.cyan.shade400.withValues(alpha: 0.25),
+                    Colors.purple.shade400.withValues(alpha: 0.2),
+                  ],
+                )
               : LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.white.withValues(alpha: 0.06),
-              Colors.white.withValues(alpha: 0.02),
-            ],
-          ),
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white.withValues(alpha: 0.06),
+                    Colors.white.withValues(alpha: 0.02),
+                  ],
+                ),
           borderRadius: BorderRadius.circular(25),
           border: Border.all(
             color: isSelected

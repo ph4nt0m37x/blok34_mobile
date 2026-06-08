@@ -10,6 +10,9 @@ import 'package:blok34_mobile/screens/profile/profile_screen.dart';
 import 'package:blok34_mobile/widgets/top_nav_bar.dart';
 import 'package:blok34_mobile/widgets/bottom_nav_bar.dart';
 import 'package:blok34_mobile/services/auth_service.dart';
+import 'package:provider/provider.dart';
+
+import '../providers/auth_state_provider.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -22,6 +25,7 @@ class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
   final AuthService _authService = AuthService();
+  late final authProvider = context.read<AuthStateProvider>();
 
   String? get currentUserId =>
       _authService.getCurrentFirebaseUser()?.uid;
@@ -123,7 +127,7 @@ class _MainScreenState extends State<MainScreen> {
     return Scaffold(
       backgroundColor: Color(0xFF2D1B69),
       appBar: TopNavBar(
-        userPhotoUrl: null, // Pass actual user photo URL when available userPhotoUrl: currentUser?.photoUrl,
+        userPhotoUrl: authProvider.currentUser?.photoUrl,
         onMyEventsTap: _onMyEventsTap,
         onMyVenuesTap: _onMyVenuesTap,
         onSettingsTap: _onSettingsTap,

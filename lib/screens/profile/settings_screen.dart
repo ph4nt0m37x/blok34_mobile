@@ -332,34 +332,8 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
   }
 
   Future<void> _updateEmail() async {
-    final newEmail = _newEmailController.text.trim();
-
-    if (newEmail.isEmpty || !newEmail.contains('@')) {
-      _showSnackBar('Please enter a valid email address', isError: true);
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      await _authService.updateEmail(
-        newEmail: newEmail,
-        password: _passwordForEmailController.text,
-      );
-
-      _newEmailController.clear();
-      _passwordForEmailController.clear();
-
-      _showSnackBar('Verification email sent! Please verify your new email address.');
-    } catch (e) {
-      _showSnackBar(e.toString(), isError: true);
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
+    // This method is kept but won't be called as button is disabled
+    _showSnackBar('Email changing is currently in development', isError: true);
   }
 
   void _showSnackBar(String message, {bool isError = false}) {
@@ -826,6 +800,66 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
+          // Development Feature Banner
+          Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.amber.withValues(alpha: 0.15),
+                  Colors.orange.withValues(alpha: 0.1),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.amber.withValues(alpha: 0.3),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.build_circle,
+                    color: Colors.amber.shade300,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "🚧 Feature in Development",
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.amber.shade300,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        "Email changing is currently being implemented and will be available soon.",
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -872,123 +906,98 @@ class _SettingsScreenState extends State<SettingsScreen> with SingleTickerProvid
             ),
           ),
           const SizedBox(height: 24),
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.white.withValues(alpha: 0.08),
-                  Colors.white.withValues(alpha: 0.03),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.1),
-              ),
-            ),
-            child: TextField(
-              controller: _newEmailController,
-              keyboardType: TextInputType.emailAddress,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                labelText: 'New Email Address',
-                labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
-                prefixIcon: Icon(Icons.email_outlined, color: Colors.white.withValues(alpha: 0.6)),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.white.withValues(alpha: 0.08),
-                  Colors.white.withValues(alpha: 0.03),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.1),
-              ),
-            ),
-            child: TextField(
-              controller: _passwordForEmailController,
-              obscureText: true,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                labelText: 'Confirm with Password',
-                labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
-                prefixIcon: Icon(Icons.lock_outline, color: Colors.white.withValues(alpha: 0.6)),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.orange.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Colors.orange.withValues(alpha: 0.3),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.warning_amber_rounded, color: Colors.orange.shade300, size: 20),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    "You'll receive a verification email. Your email will not be changed until you verify the new address.",
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.orange.shade200,
-                    ),
-                  ),
+
+          // Disabled New Email Field
+          IgnorePointer(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white.withValues(alpha: 0.08),
+                    Colors.white.withValues(alpha: 0.03),
+                  ],
                 ),
-              ],
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.1),
+                ),
+              ),
+              child: TextField(
+                controller: _newEmailController,
+                keyboardType: TextInputType.emailAddress,
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+                decoration: InputDecoration(
+                  labelText: 'New Email Address',
+                  labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
+                  prefixIcon: Icon(Icons.email_outlined, color: Colors.white.withValues(alpha: 0.4)),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 24),
-          GestureDetector(
-            onTap: _isLoading ? null : _updateEmail,
+          const SizedBox(height: 16),
+
+          // Disabled Password Field
+          IgnorePointer(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white.withValues(alpha: 0.08),
+                    Colors.white.withValues(alpha: 0.03),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.1),
+                ),
+              ),
+              child: TextField(
+                controller: _passwordForEmailController,
+                obscureText: true,
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+                decoration: InputDecoration(
+                  labelText: 'Confirm with Password',
+                  labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
+                  prefixIcon: Icon(Icons.lock_outline, color: Colors.white.withValues(alpha: 0.4)),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Disabled Update Button
+          Opacity(
+            opacity: 0.5,
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 16),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    Colors.cyan.shade400.withValues(alpha: 0.2),
-                    Colors.purple.shade400.withValues(alpha: 0.15),
+                    Colors.grey.shade400.withValues(alpha: 0.2),
+                    Colors.grey.shade600.withValues(alpha: 0.15),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(30),
                 border: Border.all(
-                  color: Colors.cyan.shade400.withValues(alpha: 0.5),
+                  color: Colors.grey.shade400.withValues(alpha: 0.5),
                 ),
               ),
-              child: Center(
-                child: _isLoading
-                    ? SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.cyan.shade300,
-                  ),
-                )
-                    : Text(
-                  "Update Email",
+              child: const Center(
+                child: Text(
+                  "Coming Soon",
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: Colors.cyan.shade200,
+                    color: Colors.grey,
                   ),
                 ),
               ),

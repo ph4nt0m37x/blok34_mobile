@@ -268,16 +268,28 @@ class AuthService {
     if (user == null) throw Exception('No user logged in');
 
     try {
+      // Re-authenticate user
       final credential = EmailAuthProvider.credential(
         email: user.email!,
         password: password,
       );
       await user.reauthenticateWithCredential(credential);
+
+      // Send verification email to new address
       await user.verifyBeforeUpdateEmail(newEmail);
 
-      await _firestore.collection('users').doc(user.uid).update({
-        'email': newEmail,
-      });
+      // Don't update Firestore immediately - email isn't changed until verified!
+      // Instead, store pending email in Firestore or handle email change via email verification link
+
+      // Option 1: Store pending email change
+      await _firestore.collection('users').doc(user.uid).set({
+        'pendingEmail': newEmail,
+        'emailChangeRequestedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // Return success message for UX
+      throw Exception('Verification email sent to $newEmail. Please verify to complete email change.');
+
     } on FirebaseAuthException catch (e) {
       if (e.code == 'wrong-password') {
         throw Exception('Password is incorrect');
@@ -285,12 +297,24 @@ class AuthService {
         throw Exception('Please log out and log in again to change email');
       } else if (e.code == 'email-already-in-use') {
         throw Exception('This email is already in use');
+      } else if (e.code == 'invalid-email') {
+        throw Exception('Invalid email format');
       } else {
         throw Exception('Error updating email: ${e.message}');
       }
     } catch (e) {
       throw Exception('Error updating email: $e');
     }
+  }
+
+// Add this method to handle the email change after verification
+  Future<void> confirmEmailChange(String userId, String newEmail) async {
+    // This should be called from your email verification handler
+    await _firestore.collection('users').doc(userId).update({
+      'email': newEmail,
+      'pendingEmail': FieldValue.delete(),
+      'emailChangeRequestedAt': FieldValue.delete(),
+    });
   }
 
   Future<File?> pickImageFromGallery() async {

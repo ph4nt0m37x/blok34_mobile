@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 
 import '../../providers/auth_state_provider.dart';
 import '../../services/event_service.dart';
+import '../../services/search_service.dart';
 import '../../utils/text_formatter.dart';
 
 class EventsScreen extends StatefulWidget {
@@ -27,11 +28,10 @@ class _EventsScreenState extends State<EventsScreen> {
   bool _showCategoryFilter = false;
 
   final EventService _eventService = EventService();
+  final SearchService _searchService = SearchService();
 
   List<Event> _upcomingEvents = [];
-
   bool _isLoading = true;
-
 
   @override
   void initState() {
@@ -41,6 +41,10 @@ class _EventsScreenState extends State<EventsScreen> {
 
   Future<void> _loadEvents() async {
     try {
+      setState(() {
+        _isLoading = true;
+      });
+
       final events = await _eventService.getUpcomingEvents();
 
       setState(() {
@@ -62,63 +66,71 @@ class _EventsScreenState extends State<EventsScreen> {
     super.dispose();
   }
 
-  void _searchEvents(String query) {
+  // Search events using SearchService
+  Future<void> _searchEvents(String query) async {
+    if (query.isEmpty && _selectedCategory == null) {
+      // No filters - load all upcoming events
+      await _loadEvents();
+      return;
+    }
+
     setState(() {
       _isSearching = query.isNotEmpty;
+      _isLoading = true;
     });
 
-    //  final results = await searchEvents(query);
-    // setState(() {
-    //   _filteredEvents = results;
-    // });
+    try {
+      List<Event> results;
 
-    // for now, filtering locally
-    setState(() {
-      if (query.isEmpty && _selectedCategory == null) {
-        _filteredEvents = _upcomingEvents;
+      if (query.isNotEmpty && _selectedCategory != null) {
+        // Both search query and category filter
+        // First search by query, then filter by category
+        final searchResults = await _searchService.searchEvents(query);
+        results = searchResults.where((event) =>
+        event.category == _selectedCategory
+        ).toList();
+      } else if (query.isNotEmpty) {
+        // Only search query
+        results = await _searchService.searchEvents(query);
       } else {
-        _filteredEvents = _upcomingEvents.where((event) {
-          final matchesQuery = query.isEmpty ||
-              event.title.toLowerCase().contains(query.toLowerCase()) ||
-              event.description.toLowerCase().contains(query.toLowerCase());
-
-          final matchesCategory = _selectedCategory == null ||
-              event.category == _selectedCategory;
-
-          return matchesQuery && matchesCategory;
-        }).toList();
+        // Only category filter
+     //   final categoryName = TextFormatter.formatCategoryName(_selectedCategory!.name);
+        results = await _searchService.getEventsByCategory(_selectedCategory!.name);
       }
-    });
+
+      setState(() {
+        _filteredEvents = results;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error searching events: $e');
+      setState(() {
+        _isLoading = false;
+        _filteredEvents = [];
+      });
+    }
   }
 
+  // Category selection handler
   Future<void> _searchByCategory(EventCategory? category) async {
     setState(() {
       _selectedCategory = category;
       _showCategoryFilter = false;
-      _isLoading = true;
     });
 
-    List<Event> results;
-
-    if (category == null) {
-      results = await _eventService.getUpcomingEvents();
-    } else {
-      results = await _eventService.getUpcomingEventsByCategory(category);
-    }
-
-    setState(() {
-      _filteredEvents = results;
-      _isLoading = false;
-    });
+    // Trigger search with current query and new category
+    await _searchEvents(_searchController.text);
   }
 
+  // Clear all filters
   void _clearFilters() {
     _searchController.clear();
     setState(() {
       _selectedCategory = null;
       _showCategoryFilter = false;
+      _isSearching = false;
     });
-    _searchEvents('');
+    _loadEvents();
   }
 
   void _navigateToCreateEvent() {
@@ -127,7 +139,7 @@ class _EventsScreenState extends State<EventsScreen> {
       context,
       MaterialPageRoute(
         builder: (context) => EventFormScreen(
-          currentUserId: authProvider.currentUser!.id, // Replace with actual user ID
+          currentUserId: authProvider.currentUser!.id,
         ),
       ),
     );
@@ -368,7 +380,18 @@ class _EventsScreenState extends State<EventsScreen> {
             // Events Grid
             SliverPadding(
               padding: const EdgeInsets.all(12),
-              sliver: _filteredEvents.isEmpty
+              sliver: _isLoading
+                  ? const SliverToBoxAdapter(
+                child: SizedBox(
+                  height: 400,
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation(Colors.cyan),
+                    ),
+                  ),
+                ),
+              )
+                  : _filteredEvents.isEmpty
                   ? SliverToBoxAdapter(
                 child: SizedBox(
                   height: 400,
@@ -409,9 +432,13 @@ class _EventsScreenState extends State<EventsScreen> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        const Text(
-                          "Try different keywords",
-                          style: TextStyle(
+                        Text(
+                          _selectedCategory != null && _searchController.text.isNotEmpty
+                              ? "No events match your search in this category"
+                              : _selectedCategory != null
+                              ? "No events in this category"
+                              : "Try different keywords",
+                          style: const TextStyle(
                             fontSize: 13,
                             color: Colors.white54,
                           ),
